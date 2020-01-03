@@ -169,7 +169,7 @@ fn compile_unary_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
     let first = pairs.next().unwrap();
 
     match first.as_rule() {
-        Rule::base_expr =>  {
+        Rule::base_expr => {
             assert!(pairs.next().is_none());
             compile_base_expr_node(first)
         }
