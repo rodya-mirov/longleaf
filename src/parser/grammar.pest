@@ -1,0 +1,79 @@
+// just saying we need to parse the whole line as a valid input
+repl_input_line = { SOI ~ repl_input ~ EOI }
+
+// possible "complete" user inputs, for the REPL
+repl_input = 
+    { quit
+    | help
+    | statement
+    | expr
+    }
+
+quit = { "quit" | "exit" }
+
+help = { "help" }
+
+statement = 
+    { var_defn_stmt
+    }
+
+var_defn_stmt = { id ~ "=" ~ expr ~ ";" }
+
+expr = { add_expr }
+
+add_expr = { mul_expr ~ ( add_op ~ mul_expr )* }
+mul_expr = { unary_expr ~ ( mul_op ~ unary_expr )* }
+
+// note this is recursive because that turns out to be more convenient
+// for parsing, while the add_expr / mul_expr are in list form;
+// this also makes sure -10.7 gets parsed as a number, not -(10.7)
+unary_expr =
+    { base_expr
+    | unary_op ~ unary_expr
+    }
+
+base_expr = { paren_expr | id | float | float_list }
+paren_expr = { "(" ~ expr ~ ")" }
+
+add_op = { PLUS | MINUS }
+mul_op = { TIMES | DIVIDE }
+unary_op = { NEG }
+
+PLUS = { "+" }
+MINUS = { "-" }
+TIMES = { "*" }
+DIVIDE = { "/" }
+NEG = { "-" }
+
+id = @{ ASCII_ALPHA ~ ( ASCII_ALPHA | ASCII_DIGIT )* }
+
+float_list =
+    { "[" ~ (",")? ~ "]"
+    | "[" ~ float ~ ( "," ~ float )* ~ (",")? ~ "]"
+    }
+
+
+float = @{
+    ( "-" )? ~ 
+        // the grammar for a nonnegative float
+        ( pos_int ~ "." ~ ( ASCII_DIGIT )*
+        | "." ~ ( ASCII_DIGIT )*
+        | pos_int ~ "."
+        | pos_int
+        )
+}
+
+// helper formula; no leading zeros in ints, but 0 itself is an int
+pos_int = @
+    { "0"
+    | ( ASCII_NONZERO_DIGIT ) ~ ( ASCII_DIGIT )*
+    }
+
+
+// Used only for unit testing
+only_expr = { SOI ~ expr ~ EOI }
+only_float_list = { SOI ~ float_list ~ EOI }
+only_float = { SOI ~ float ~ EOI }
+
+
+WHITESPACE = _{ WHITE_SPACE }
