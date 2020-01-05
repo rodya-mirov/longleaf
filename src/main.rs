@@ -41,7 +41,7 @@ fn main() {
             },
             Ok(ReplInput::Expr(expr_node)) => match vm.evaluate_expr(expr_node) {
                 Ok(val) => {
-                    println!("{}", val);
+                    println!("{:?}", val);
                 }
                 Err(e) => {
                     println!("Error evaluating expression: {:?}", e);

@@ -1,46 +1,48 @@
 macro_rules! unary_switcher {
-    ($op:tt, $a:expr) => {
+    ($op:tt, $a:expr, $store:expr) => {
         {
-            let a: Value = $a;
+            let a: EvalValue = $a;
 
-            match a.as_ref() {
-                Float(a) => Float($op a),
-                FloatList(a) => FloatList(vector!($op, a)),
+            match a {
+                EvalValue::Float(a) => EvalValue::Float($op a),
+                EvalValue::FloatList(a) => EvalValue::FloatList(vector!($op, a, $store)),
             }
         }
     }
 }
 
 macro_rules! vector {
-    ($op:tt, $a:expr) => {
+    ($op:tt, $a:expr, $store:expr) => {
         {
-            let a: &[f64] = $a;
+            let a: Box<dyn FloatListValue> = $a;
+            let a: &Vec<f64> = &**a; // TODO: for real?
 
-            let mut out = Vec::with_capacity(a.len());
+            let mut out = ($store).get_vector(a.len());
+            assert_eq!(out.len(), a.len());
 
-            for a in a {
-                out.push($op a);
+            for i in 0 .. a.len() {
+                out[i] = $op a[i];
             }
 
-            out
+            Box::new(out)
         }
     };
 }
 
 macro_rules! binary_switcher {
-    ($op:tt, $a:expr, $b:expr) => {
+    ($op:tt, $a:expr, $b:expr, $store:expr) => {
         {
-            let a: Value = $a;
-            let b: Value = $b;
+            let a: EvalValue = $a;
+            let b: EvalValue = $b;
 
-            match a.as_ref() {
-                Float(a) => match b.as_ref() {
-                    Float(b) => Float(a $op b),
-                    FloatList(b) => FloatList(scalar_vector!($op, *a, b)),
+            match a {
+                EvalValue::Float(a) => match b {
+                    EvalValue::Float(b) => EvalValue::Float(a $op b),
+                    EvalValue::FloatList(b) => EvalValue::FloatList(scalar_vector!($op, a, b, $store)),
                 },
-                FloatList(a) => match b.as_ref() {
-                    Float(b) => FloatList(vector_scalar!($op, a, *b)),
-                    FloatList(b) => FloatList(vector_vector!($op, a, b)),
+                EvalValue::FloatList(a) => match b {
+                    EvalValue::Float(b) => EvalValue::FloatList(vector_scalar!($op, a, b, $store)),
+                    EvalValue::FloatList(b) => EvalValue::FloatList(vector_vector!($op, a, b, $store)),
                 },
             }
         }
@@ -48,56 +50,59 @@ macro_rules! binary_switcher {
 }
 
 macro_rules! scalar_vector {
-    ($op:tt, $a:expr, $b:expr) => {
+    ($op:tt, $a:expr, $b:expr, $store:expr) => {
         {
             let a: f64 = $a;
-            let b: &[f64] = $b;
+            let b: &Vec<f64> = &**$b; // TODO: :rust-triggered:
 
-            let mut out = Vec::with_capacity(b.len());
+            let mut out = ($store).get_vector(b.len());
+            assert_eq!(out.len(), b.len());
 
-            for b in b {
-                out.push(a $op b);
+            for i in 0 .. b.len() {
+                out[i] = a $op b[i];
             }
 
-            out
+            Box::new(out)
         }
     };
 }
 
 macro_rules! vector_scalar {
-    ($op:tt, $a:expr, $b:expr) => {
+    ($op:tt, $a:expr, $b:expr, $store:expr) => {
         {
-            let a: &[f64] = $a;
+            let a: &Vec<f64> = &**$a; // TODO: ugh
             let b: f64 = $b;
 
-            let mut out = Vec::with_capacity(a.len());
+            let mut out = ($store).get_vector(a.len());
+            assert_eq!(out.len(), a.len());
 
-            for a in a {
-                out.push(a $op b);
+            for i in 0 .. a.len() {
+                out[i] = a[i] $op b;
             }
 
-            out
+            Box::new(out)
         }
     };
 }
 
 macro_rules! vector_vector {
-    ($op:tt, $a:expr, $b:expr) => {
+    ($op:tt, $a:expr, $b:expr, $store:expr) => {
         {
-            let a: &[f64] = $a;
-            let b: &[f64] = $b;
+            let a: &Vec<f64> = &**$a; // TODO: ugh
+            let b: &Vec<f64> = &**$b; // TODO: :rust-triggered:
 
             if a.len() != b.len() {
                 return Err(EvalError::DimensionMismatch(format!("Vector arguments must have same length; got {} and {}", a.len(), b.len())));
             }
 
-            let mut out = Vec::with_capacity(a.len());
+            let mut out = ($store).get_vector(a.len());
+            assert_eq!(out.len(), a.len());
 
             for i in 0 .. a.len() {
-                out.push(a[i] $op b[i]);
+                out[i] = a[i] $op b[i];
             }
 
-            out
+            Box::new(out)
         }
     };
 }
