@@ -17,6 +17,7 @@ pub enum EvalError {
 
 pub type Value = Rc<PrimitiveValue>;
 
+#[derive(Clone, PartialEq, Debug)]
 pub enum PrimitiveValue {
     Float(f64),
     FloatList(Vec<f64>),
@@ -113,3 +114,6 @@ impl fmt::Display for PrimitiveValue {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
