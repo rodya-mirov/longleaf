@@ -78,8 +78,8 @@ pub trait FloatListValue: Deref<Target = Vec<f64>> + std::fmt::Debug {
 
 impl PartialEq for dyn FloatListValue {
     fn eq(&self, other: &dyn FloatListValue) -> bool {
-        let a_vec: &Vec<f64> = *&self;
-        let b_vec: &Vec<f64> = *&other;
+        let a_vec: &Vec<f64> = self; // deref-magic
+        let b_vec: &Vec<f64> = other;
 
         a_vec == b_vec
     }
@@ -171,6 +171,7 @@ impl VM {
         Ok(out)
     }
 
+    #[allow(clippy::cognitive_complexity)] // False positive from macro expansions
     fn eval_binary_expr(&self, op: BinaryOp, a: ExprNode, b: ExprNode) -> VmResult<EvalValue> {
         use BinaryOp::*;
 
@@ -201,7 +202,7 @@ impl fmt::Display for PrimitiveValue {
                 let mut iter = vals.iter();
                 write!(f, "{}", iter.next().unwrap())?;
 
-                while let Some(next) = iter.next() {
+                for next in iter {
                     write!(f, ", {}", next)?;
                 }
                 write!(f, "]")
