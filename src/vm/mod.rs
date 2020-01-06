@@ -36,7 +36,7 @@ impl VM {
     pub fn define_variable(&mut self, name: &str, value: Value) {
         let name = name.to_string();
 
-        self.stored_values.insert(name, value.clone());
+        self.stored_values.insert(name, value);
     }
 
     pub fn evaluate_expr(&self, expr: ExprNode) -> VmResult<Value> {
@@ -74,6 +74,7 @@ impl VM {
         Ok(Rc::new(out))
     }
 
+    #[allow(clippy::cognitive_complexity)] // False positive from macro expansions
     fn eval_binary_expr(&self, op: BinaryOp, a: ExprNode, b: ExprNode) -> VmResult<Value> {
         use BinaryOp::*;
         use PrimitiveValue::*;
@@ -102,10 +103,10 @@ impl fmt::Display for PrimitiveValue {
                     write!(f, "]")?;
                     return Ok(());
                 }
-                let mut iter = vals.into_iter();
+                let mut iter = vals.iter();
                 write!(f, "{}", iter.next().unwrap())?;
 
-                while let Some(next) = iter.next() {
+                for next in iter {
                     write!(f, ", {}", next)?;
                 }
                 write!(f, "]")
