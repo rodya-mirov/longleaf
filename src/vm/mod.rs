@@ -1,11 +1,15 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::ops::Deref;
 use std::rc::Rc;
 
 use crate::parser::*;
 
 #[macro_use]
 mod macros;
+
+mod store;
+use store::VectorStore;
 
 pub type VmResult<T> = Result<T, EvalError>;
 
@@ -15,38 +19,132 @@ pub enum EvalError {
     DimensionMismatch(String),
 }
 
-pub type Value = Rc<PrimitiveValue>;
+/// The result of evaluating an expression
+#[derive(Debug)]
+pub enum EvalValue {
+    Float(f64),
+    FloatList(Box<dyn FloatListValue>),
+}
 
+impl PartialEq for EvalValue {
+    fn eq(&self, other: &EvalValue) -> bool {
+        use EvalValue::*;
+
+        match self {
+            Float(a) => match other {
+                Float(b) => a == b,
+                _ => false,
+            },
+            FloatList(a) => match other {
+                FloatList(b) => a == b,
+                _ => false,
+            },
+        }
+    }
+}
+
+impl From<EvalValue> for PrimitiveValue {
+    fn from(ev: EvalValue) -> PrimitiveValue {
+        match ev {
+            EvalValue::Float(f) => PrimitiveValue::Float(f),
+            EvalValue::FloatList(vals) => {
+                let fl = vals.to_float_list();
+                PrimitiveValue::FloatList(fl)
+            }
+        }
+    }
+}
+
+impl From<f64> for EvalValue {
+    fn from(f: f64) -> EvalValue {
+        EvalValue::Float(f)
+    }
+}
+
+impl From<Vec<f64>> for EvalValue {
+    fn from(vals: Vec<f64>) -> EvalValue {
+        EvalValue::FloatList(Box::new(Box::new(vals)))
+    }
+}
+
+/// Trait describing actions which a FloatListValue must satisfy.
+/// The return type EvalValue only guarantees that (float lists) must satisfy
+/// this behavior. In particular it does not guarantee any kind of mutability,
+/// because this may be a view into a saved vector.
+// TODO: make the Vec<f64> be a slice??? Better for parallelization
+pub trait FloatListValue: Deref<Target = Vec<f64>> + std::fmt::Debug {
+    fn to_float_list(self: Box<Self>) -> Rc<Vec<f64>>;
+}
+
+impl PartialEq for dyn FloatListValue {
+    fn eq(&self, other: &dyn FloatListValue) -> bool {
+        let a_vec: &Vec<f64> = self; // deref-magic
+        let b_vec: &Vec<f64> = other;
+
+        a_vec == b_vec
+    }
+}
+
+// TODO: do something about this double indirection? We end up with a Box<Box<Vec>>
+impl FloatListValue for Box<Vec<f64>> {
+    fn to_float_list(self: Box<Self>) -> Rc<Vec<f64>> {
+        Rc::new(**self)
+    }
+}
+
+// TODO: do something about this double indirection? We end up with a Box<Rc<Vec>>
+impl FloatListValue for Rc<Vec<f64>> {
+    fn to_float_list(self: Box<Self>) -> Rc<Vec<f64>> {
+        *self
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub enum PrimitiveValue {
     Float(f64),
-    FloatList(Vec<f64>),
+    FloatList(Rc<Vec<f64>>),
+}
+
+impl PrimitiveValue {
+    fn to_eval_value(&self) -> EvalValue {
+        match self {
+            PrimitiveValue::Float(f) => EvalValue::Float(*f),
+            PrimitiveValue::FloatList(vals) => EvalValue::FloatList(Box::new(vals.clone())),
+        }
+    }
 }
 
 pub struct VM {
-    stored_values: HashMap<String, Value>,
+    variable_definitions: HashMap<String, PrimitiveValue>,
+    arena: VectorStore,
 }
 
 impl VM {
     pub fn new() -> Self {
         VM {
-            stored_values: HashMap::new(),
+            variable_definitions: HashMap::new(),
+            arena: VectorStore::new(),
         }
     }
 
-    pub fn define_variable(&mut self, name: &str, value: Value) {
+    pub fn define_variable<T>(&mut self, name: &str, value: T)
+    where
+        T: Into<PrimitiveValue>,
+    {
         let name = name.to_string();
 
-        self.stored_values.insert(name, value);
+        self.variable_definitions.insert(name, value.into());
     }
 
-    pub fn evaluate_expr(&self, expr: ExprNode) -> VmResult<Value> {
-        let out: Value = match expr {
-            ExprNode::Float(f) => Rc::new(PrimitiveValue::Float(f)),
-            ExprNode::FloatList(vals) => Rc::new(PrimitiveValue::FloatList(vals)),
+    pub fn evaluate_expr(&self, expr: ExprNode) -> VmResult<EvalValue> {
+        let out: EvalValue = match expr {
+            ExprNode::Float(f) => EvalValue::Float(f),
+            // This is embarassing
+            ExprNode::FloatList(vals) => EvalValue::FloatList(Box::new(Box::new(vals))),
             ExprNode::UnaryExpr(op, val) => self.eval_unary_expr(op, *val)?,
             ExprNode::BinaryExpr(op, a, b) => self.eval_binary_expr(op, *a, *b)?,
             ExprNode::VariableRef(id) => {
-                let stored = self.stored_values.get(&id);
+                let stored = self.variable_definitions.get(&id);
                 match stored {
                     None => {
                         return Err(EvalError::UnknownVariable(format!(
@@ -54,42 +152,40 @@ impl VM {
                             id
                         )));
                     }
-                    Some(val) => val.clone(),
+                    Some(val) => val.to_eval_value(),
                 }
             }
         };
         Ok(out)
     }
 
-    fn eval_unary_expr(&self, op: UnaryOp, expr: ExprNode) -> VmResult<Value> {
-        use PrimitiveValue::*;
+    fn eval_unary_expr(&self, op: UnaryOp, expr: ExprNode) -> VmResult<EvalValue> {
         use UnaryOp::*;
 
-        let inner: Value = self.evaluate_expr(expr)?;
+        let inner: EvalValue = self.evaluate_expr(expr)?;
 
-        let out: PrimitiveValue = match op {
-            Negate => unary_switcher!(-, inner),
+        let out: EvalValue = match op {
+            Negate => unary_switcher!(-, inner, &self.arena),
         };
 
-        Ok(Rc::new(out))
+        Ok(out)
     }
 
     #[allow(clippy::cognitive_complexity)] // False positive from macro expansions
-    fn eval_binary_expr(&self, op: BinaryOp, a: ExprNode, b: ExprNode) -> VmResult<Value> {
+    fn eval_binary_expr(&self, op: BinaryOp, a: ExprNode, b: ExprNode) -> VmResult<EvalValue> {
         use BinaryOp::*;
-        use PrimitiveValue::*;
 
-        let a: Value = self.evaluate_expr(a)?;
-        let b: Value = self.evaluate_expr(b)?;
+        let a: EvalValue = self.evaluate_expr(a)?;
+        let b: EvalValue = self.evaluate_expr(b)?;
 
-        let out: PrimitiveValue = match op {
-            Plus => binary_switcher!(+, a, b),
-            Minus => binary_switcher!(-, a, b),
-            Times => binary_switcher!(*, a, b),
-            Divide => binary_switcher!(/, a, b),
+        let out: EvalValue = match op {
+            Plus => binary_switcher!(+, a, b, &self.arena),
+            Minus => binary_switcher!(-, a, b, &self.arena),
+            Times => binary_switcher!(*, a, b, &self.arena),
+            Divide => binary_switcher!(/, a, b, &self.arena),
         };
 
-        Ok(Rc::new(out))
+        Ok(out)
     }
 }
 
@@ -114,3 +210,6 @@ impl fmt::Display for PrimitiveValue {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
