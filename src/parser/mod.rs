@@ -42,12 +42,10 @@ pub enum BinaryOp {
 pub fn parse_repl_input(input: &str) -> ParseResult<ReplInput> {
     let parsed = PestParser::parse(Rule::repl_input_line, input);
 
-    if parsed.is_err() {
-        // TODO: better error handling
-        return Err(parsed.unwrap_err().to_string());
-    }
+    // TODO: better error handling?
+    let mut parsed = parsed.map_err(|e| e.to_string())?;
 
-    let mut parsed: Pairs<'_, Rule> = parsed.unwrap().next().unwrap().into_inner();
+    let mut parsed: Pairs<'_, Rule> = parsed.next().unwrap().into_inner();
 
     let actual_input = parsed.next().unwrap();
 
@@ -85,7 +83,7 @@ pub fn parse_repl_input(input: &str) -> ParseResult<ReplInput> {
     }
 }
 
-fn only_child<'a>(pair: Pair<'a, Rule>) -> Pair<'a, Rule> {
+fn only_child(pair: Pair<'_, Rule>) -> Pair<'_, Rule> {
     let mut pairs = pair.into_inner();
 
     let next = pairs.next();
