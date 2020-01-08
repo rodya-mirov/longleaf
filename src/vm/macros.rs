@@ -1,3 +1,33 @@
+macro_rules! unary_fn_switcher {
+    ($func:expr, $a:expr, $store:expr) => {{
+        let a: EvalValue = $a;
+        let func = $func;
+
+        match a {
+            EvalValue::Float(a) => EvalValue::Float(func(a)),
+            EvalValue::FloatList(a) => EvalValue::FloatList(unary_fn_vector!(func, a, $store)),
+        }
+    }};
+}
+
+macro_rules! unary_fn_vector {
+    ($func:expr, $a:expr, $store:expr) => {{
+        let a: Box<dyn FloatListValue> = $a;
+        let a: &Vec<f64> = &**a; // TODO: for real?
+
+        let func = $func;
+
+        let mut out = ($store).get_vector(a.len());
+        assert_eq!(out.len(), a.len());
+
+        for i in 0..a.len() {
+            out[i] = func(a[i]);
+        }
+
+        Box::new(out)
+    }};
+}
+
 macro_rules! unary_switcher {
     ($op:tt, $a:expr, $store:expr) => {
         {
@@ -5,13 +35,13 @@ macro_rules! unary_switcher {
 
             match a {
                 EvalValue::Float(a) => EvalValue::Float($op a),
-                EvalValue::FloatList(a) => EvalValue::FloatList(vector!($op, a, $store)),
+                EvalValue::FloatList(a) => EvalValue::FloatList(unary_op_vector!($op, a, $store)),
             }
         }
     }
 }
 
-macro_rules! vector {
+macro_rules! unary_op_vector {
     ($op:tt, $a:expr, $store:expr) => {
         {
             let a: Box<dyn FloatListValue> = $a;

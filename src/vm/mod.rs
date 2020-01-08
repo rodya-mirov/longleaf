@@ -17,6 +17,7 @@ pub type VmResult<T> = Result<T, EvalError>;
 pub enum EvalError {
     UnknownVariable(String),
     DimensionMismatch(String),
+    WrongNumArgs(String),
 }
 
 /// The result of evaluating an expression
@@ -139,8 +140,9 @@ impl VM {
     pub fn evaluate_expr(&self, expr: ExprNode) -> VmResult<EvalValue> {
         let out: EvalValue = match expr {
             ExprNode::Float(f) => EvalValue::Float(f),
-            // This is embarassing
+            // TODO: This double-indirection is embarassing
             ExprNode::FloatList(vals) => EvalValue::FloatList(Box::new(Box::new(vals))),
+            ExprNode::FunctionCall(name, args) => self.eval_function_call(name, args)?,
             ExprNode::UnaryExpr(op, val) => self.eval_unary_expr(op, *val)?,
             ExprNode::BinaryExpr(op, a, b) => self.eval_binary_expr(op, *a, *b)?,
             ExprNode::VariableRef(id) => {
@@ -156,6 +158,39 @@ impl VM {
                 }
             }
         };
+        Ok(out)
+    }
+
+    fn eval_function_call(&self, name: String, args: Vec<ExprNode>) -> VmResult<EvalValue> {
+        let name_str: &str = &name;
+        let num_args = match name_str {
+            "sin" | "cos" | "tan" => 1,
+            _ => Err(EvalError::UnknownVariable(name_str.to_string()))?,
+        };
+
+        if args.len() != num_args {
+            Err(EvalError::WrongNumArgs(format!(
+                "For function {}, expected {} args, but got {}",
+                name_str,
+                num_args,
+                args.len()
+            )))?;
+        }
+
+        let mut results = Vec::with_capacity(num_args);
+
+        for arg in args {
+            results.push(self.evaluate_expr(arg)?);
+        }
+
+        let out = match name_str {
+            "sin" => unary_fn_switcher!(<f64>::sin, results.pop().unwrap(), &self.arena),
+            "cos" => unary_fn_switcher!(<f64>::cos, results.pop().unwrap(), &self.arena),
+            "tan" => unary_fn_switcher!(<f64>::tan, results.pop().unwrap(), &self.arena),
+
+            _ => unreachable!(), // TODO: one switch, so we don't need this catch ... ?
+        };
+
         Ok(out)
     }
 
