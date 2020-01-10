@@ -32,7 +32,13 @@ unary_expr =
     | unary_op ~ unary_expr
     }
 
-base_expr = { paren_expr | id | float | float_list }
+base_expr = { paren_expr | function_call | id | float | float_list }
+
+function_call =
+    { id ~ "(" ~ ")"
+    | id ~ "(" ~ expr ~ ( "," ~ expr )* ~ ( "," )? ~ ")"
+    }
+
 paren_expr = { "(" ~ expr ~ ")" }
 
 add_op = { PLUS | MINUS }

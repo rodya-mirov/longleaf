@@ -64,6 +64,45 @@ fn to_expr_tests() {
             )),
         ),
     );
+
+    do_test(
+        "f(1, 2, 3+4)",
+        FunctionCall(
+            "f".to_string(),
+            vec![
+                Float(1.),
+                Float(2.),
+                BinaryExpr(Plus, Box::new(Float(3.)), Box::new(Float(4.))),
+            ],
+        ),
+    );
+
+    do_test(
+        "sin(x)",
+        FunctionCall("sin".to_string(), vec![VariableRef("x".to_string())]),
+    );
+
+    do_test(
+        "-cos(12+f(x)-1)",
+        UnaryExpr(
+            Negate,
+            Box::new(FunctionCall(
+                "cos".to_string(),
+                vec![BinaryExpr(
+                    Plus,
+                    Box::new(Float(12.)),
+                    Box::new(BinaryExpr(
+                        Minus,
+                        Box::new(FunctionCall(
+                            "f".to_string(),
+                            vec![VariableRef("x".to_string())],
+                        )),
+                        Box::new(Float(1.)),
+                    )),
+                )],
+            )),
+        ),
+    );
 }
 
 fn to_float_list(s: &str) -> ParseResult<Vec<f64>> {

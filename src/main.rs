@@ -1,10 +1,16 @@
 #[macro_use]
 extern crate pest_derive;
 
+#[macro_use]
+extern crate lazy_static;
+
 use std::io::{self, prelude::*};
 
 mod parser;
 mod vm;
+
+#[macro_use]
+mod macros;
 
 use parser::ReplInput;
 use vm::VM;
@@ -31,15 +37,18 @@ fn main() {
                 print_quit_dialogue();
                 break 'main_loop;
             }
-            Ok(ReplInput::VarDefn(name, expr_node)) => match vm.evaluate_expr(expr_node) {
+            Ok(ReplInput::VarDefn(name, expr_node)) => match timed!(vm.evaluate_expr(expr_node)) {
                 Ok(val) => {
-                    vm.define_variable(&name, val);
+                    let def_result = vm.define_variable(&name, val);
+                    if let Err(e) = def_result {
+                        println!("Error defining variable {}: {:?}", name, e);
+                    }
                 }
                 Err(e) => {
                     println!("Error evaluating expression: {:?}", e);
                 }
             },
-            Ok(ReplInput::Expr(expr_node)) => match vm.evaluate_expr(expr_node) {
+            Ok(ReplInput::Expr(expr_node)) => match timed!(vm.evaluate_expr(expr_node)) {
                 Ok(val) => {
                     println!("{:?}", val);
                 }

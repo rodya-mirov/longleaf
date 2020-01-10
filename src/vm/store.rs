@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::rc::{Rc, Weak};
 
-use super::FloatListValue;
+use super::{EvalValue, FloatListValue};
 
 pub struct VectorStore {
     internal_store: Rc<VectorInternalStore>,
@@ -68,6 +68,12 @@ impl VectorInternalStore {
 pub struct TrackedVector {
     data: Vec<f64>,
     home_store: Weak<VectorInternalStore>,
+}
+
+impl Into<EvalValue> for TrackedVector {
+    fn into(self) -> EvalValue {
+        EvalValue::FloatList(Box::new(self))
+    }
 }
 
 impl FloatListValue for TrackedVector {

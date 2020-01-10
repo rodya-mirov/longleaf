@@ -22,6 +22,7 @@ pub enum ExprNode {
     VariableRef(String),
     Float(f64),
     FloatList(Vec<f64>),
+    FunctionCall(String, Vec<ExprNode>),
     UnaryExpr(UnaryOp, Box<ExprNode>),
     BinaryExpr(BinaryOp, Box<ExprNode>, Box<ExprNode>),
 }
@@ -184,6 +185,8 @@ fn compile_unary_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
 }
 
 fn compile_base_expr_node(pair: Pair<'_, Rule>) -> ExprNode {
+    assert_eq!(pair.as_rule(), Rule::base_expr);
+
     let pair = only_child(pair);
 
     match pair.as_rule() {
@@ -191,8 +194,25 @@ fn compile_base_expr_node(pair: Pair<'_, Rule>) -> ExprNode {
         Rule::float_list => ExprNode::FloatList(compile_float_list(pair)),
         Rule::paren_expr => compile_expr_node(only_child(pair)),
         Rule::id => ExprNode::VariableRef(compile_id(pair)),
+        Rule::function_call => compile_function_call(pair),
         other => panic!("Unexpected rule {:?} as child of base_expr", other),
     }
+}
+
+fn compile_function_call(pair: Pair<'_, Rule>) -> ExprNode {
+    assert_eq!(pair.as_rule(), Rule::function_call);
+
+    let mut pairs = pair.into_inner();
+
+    let id = compile_id(pairs.next().unwrap());
+
+    let mut args = Vec::new();
+
+    for pair in pairs {
+        args.push(compile_expr_node(pair));
+    }
+
+    ExprNode::FunctionCall(id, args)
 }
 
 fn compile_float(pair: Pair<'_, Rule>) -> f64 {
