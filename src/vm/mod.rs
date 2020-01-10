@@ -1,7 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops::Deref;
 use std::rc::Rc;
+
+use once_cell::sync::Lazy;
 
 use crate::parser::*;
 
@@ -11,12 +13,16 @@ mod macros;
 mod store;
 use store::VectorStore;
 
+const RESERVED_WORDS: Lazy<HashSet<&'static str>> =
+    Lazy::new(|| vec!["sin", "cos", "tan"].into_iter().collect());
+
 pub type VmResult<T> = Result<T, EvalError>;
 
 #[derive(Debug)]
 pub enum EvalError {
     UnknownVariable(String),
     DimensionMismatch(String),
+    RedefineReservedWord(String),
     WrongNumArgs(String),
 }
 
@@ -128,13 +134,20 @@ impl VM {
         }
     }
 
-    pub fn define_variable<T>(&mut self, name: &str, value: T)
+    pub fn define_variable<T>(&mut self, name: &str, value: T) -> VmResult<()>
     where
         T: Into<PrimitiveValue>,
     {
+        if RESERVED_WORDS.contains(name) {
+            Err(EvalError::RedefineReservedWord(format!(
+                "Cannot associate a value to name {}, because it is reserved",
+                name
+            )))?;
+        }
         let name = name.to_string();
 
         self.variable_definitions.insert(name, value.into());
+        Ok(())
     }
 
     pub fn evaluate_expr(&self, expr: ExprNode) -> VmResult<EvalValue> {
@@ -163,10 +176,29 @@ impl VM {
 
     fn eval_function_call(&self, name: String, args: Vec<ExprNode>) -> VmResult<EvalValue> {
         let name_str: &str = &name;
-        let num_args = match name_str {
-            "sin" | "cos" | "tan" => 1,
-            _ => Err(EvalError::UnknownVariable(name_str.to_string()))?,
-        };
+        // TODO: this doesn't _feel_ like it's saving a lot of code, it expanded to be enormous
+        let (num_args, procedure): (usize, Box<dyn Fn(Vec<EvalValue>) -> EvalValue>) =
+            match name_str {
+                "sin" => (
+                    1,
+                    Box::new(|mut results| {
+                        unary_fn_switcher!(<f64>::sin, results.pop().unwrap(), &self.arena)
+                    }),
+                ),
+                "cos" => (
+                    1,
+                    Box::new(|mut results| {
+                        unary_fn_switcher!(<f64>::cos, results.pop().unwrap(), &self.arena)
+                    }),
+                ),
+                "tan" => (
+                    1,
+                    Box::new(|mut results| {
+                        unary_fn_switcher!(<f64>::tan, results.pop().unwrap(), &self.arena)
+                    }),
+                ),
+                _ => Err(EvalError::UnknownVariable(name_str.to_string()))?,
+            };
 
         if args.len() != num_args {
             Err(EvalError::WrongNumArgs(format!(
@@ -183,14 +215,7 @@ impl VM {
             results.push(self.evaluate_expr(arg)?);
         }
 
-        let out = match name_str {
-            "sin" => unary_fn_switcher!(<f64>::sin, results.pop().unwrap(), &self.arena),
-            "cos" => unary_fn_switcher!(<f64>::cos, results.pop().unwrap(), &self.arena),
-            "tan" => unary_fn_switcher!(<f64>::tan, results.pop().unwrap(), &self.arena),
-
-            _ => unreachable!(), // TODO: one switch, so we don't need this catch ... ?
-        };
-
+        let out = procedure(results);
         Ok(out)
     }
 

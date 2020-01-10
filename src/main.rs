@@ -33,7 +33,10 @@ fn main() {
             }
             Ok(ReplInput::VarDefn(name, expr_node)) => match vm.evaluate_expr(expr_node) {
                 Ok(val) => {
-                    vm.define_variable(&name, val);
+                    let def_result = vm.define_variable(&name, val);
+                    if let Err(e) = def_result {
+                        println!("Error defining variable {}: {:?}", name, e);
+                    }
                 }
                 Err(e) => {
                     println!("Error evaluating expression: {:?}", e);
