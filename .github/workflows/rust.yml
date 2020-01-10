@@ -6,6 +6,11 @@ jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        feature-set:
+          - ""
+          - "parallel"
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -13,11 +18,16 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: cargo check
+      - run: cargo check --features=${{feature-set}}
 
   test:
     name: Test Suite
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        feature-set:
+          - ""
+          - "parallel"
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -25,7 +35,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: cargo test
+      - run: cargo test --features=${{feature-set}}
 
   fmt:
     name: Rustfmt
@@ -43,6 +53,11 @@ jobs:
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        feature-set:
+          - ""
+          - "parallel"
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -51,4 +66,4 @@ jobs:
           toolchain: stable
           override: true
       - run: rustup component add clippy
-      - run: cargo clippy -- -D warnings
+      - run: cargo clippy -- -D warnings --features=${{feature-set}}
