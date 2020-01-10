@@ -57,7 +57,9 @@ fn var_tests() {
 #[test]
 fn make_range_tests() {
     fn do_range_test(start: f64, end: f64, step: f64, expected: Vec<f64>) {
-        let actual = make_range(start.into(), end.into(), step.into()).unwrap();
+        let store = VectorStore::new();
+
+        let actual = make_range(start.into(), end.into(), step.into(), &store).unwrap();
 
         let expected: EvalValue = expected.into();
 

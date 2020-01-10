@@ -3,8 +3,6 @@ use std::fmt;
 use std::ops::Deref;
 use std::rc::Rc;
 
-use once_cell::sync::Lazy;
-
 use crate::parser::*;
 
 #[macro_use]
@@ -13,8 +11,11 @@ mod macros;
 mod store;
 use store::VectorStore;
 
-const RESERVED_WORDS: Lazy<HashSet<&'static str>> =
-    Lazy::new(|| vec!["sin", "cos", "tan", "range"].into_iter().collect());
+// This is the whole point of once_cell; it's been vetted, it works
+lazy_static! {
+    static ref RESERVED_WORDS: HashSet<&'static str> =
+        vec!["sin", "cos", "tan", "range"].into_iter().collect();
+}
 
 pub type VmResult<T> = Result<T, EvalError>;
 
@@ -128,6 +129,8 @@ pub struct VM {
     arena: VectorStore,
 }
 
+type VmFunction<'a> = Box<dyn Fn(Vec<EvalValue>, &'a VectorStore) -> VmResult<EvalValue>>;
+
 impl VM {
     pub fn new() -> Self {
         VM {
@@ -141,10 +144,10 @@ impl VM {
         T: Into<PrimitiveValue>,
     {
         if RESERVED_WORDS.contains(name) {
-            Err(EvalError::RedefineReservedWord(format!(
+            return Err(EvalError::RedefineReservedWord(format!(
                 "Cannot associate a value to name {}, because it is reserved",
                 name
-            )))?;
+            )));
         }
         let name = name.to_string();
 
@@ -179,57 +182,56 @@ impl VM {
     fn eval_function_call(&self, name: String, args: Vec<ExprNode>) -> VmResult<EvalValue> {
         let name_str: &str = &name;
         // TODO: this doesn't _feel_ like it's saving a lot of code, it expanded to be enormous
-        let (num_args, procedure): (usize, Box<dyn Fn(Vec<EvalValue>) -> VmResult<EvalValue>>) =
-            match name_str {
-                "sin" => (
-                    1,
-                    Box::new(|mut results| {
-                        Ok(unary_fn_switcher!(
-                            <f64>::sin,
-                            results.pop().unwrap(),
-                            &self.arena
-                        ))
-                    }),
-                ),
-                "cos" => (
-                    1,
-                    Box::new(|mut results| {
-                        Ok(unary_fn_switcher!(
-                            <f64>::cos,
-                            results.pop().unwrap(),
-                            &self.arena
-                        ))
-                    }),
-                ),
-                "tan" => (
-                    1,
-                    Box::new(|mut results| {
-                        Ok(unary_fn_switcher!(
-                            <f64>::tan,
-                            results.pop().unwrap(),
-                            &self.arena
-                        ))
-                    }),
-                ),
-                "range" => (
-                    3,
-                    Box::new(|mut args| {
-                        let step = args.pop().unwrap();
-                        let end = args.pop().unwrap();
-                        let start = args.pop().unwrap();
-                        make_range(start, end, step)
-                    }),
-                ),
-                _ => Err(EvalError::UnknownVariable(name_str.to_string()))?,
-            };
+        let (num_args, procedure): (usize, VmFunction<'_>) = match name_str {
+            "sin" => (
+                1,
+                Box::new(|mut results, arena| {
+                    Ok(unary_fn_switcher!(
+                        <f64>::sin,
+                        results.pop().unwrap(),
+                        arena
+                    ))
+                }),
+            ),
+            "cos" => (
+                1,
+                Box::new(|mut results, arena| {
+                    Ok(unary_fn_switcher!(
+                        <f64>::cos,
+                        results.pop().unwrap(),
+                        arena
+                    ))
+                }),
+            ),
+            "tan" => (
+                1,
+                Box::new(|mut results, arena| {
+                    Ok(unary_fn_switcher!(
+                        <f64>::tan,
+                        results.pop().unwrap(),
+                        arena
+                    ))
+                }),
+            ),
+            "range" => (
+                3,
+                Box::new(|mut args, arena| {
+                    let step = args.pop().unwrap();
+                    let end = args.pop().unwrap();
+                    let start = args.pop().unwrap();
+                    make_range(start, end, step, arena)
+                }),
+            ),
+            _ => return Err(EvalError::UnknownVariable(name_str.to_string())),
+        };
 
         if args.len() != num_args {
-            Err(EvalError::WrongNumArgs(format!(
+            return Err(EvalError::WrongNumArgs(format!(
                 "For function {}, expected {} args, but got {}",
                 name_str,
                 num_args,
                 args.len()
-            )))?;
+            )));
         }
 
         let mut results = Vec::with_capacity(num_args);
@@ -238,7 +240,7 @@ impl VM {
             results.push(self.evaluate_expr(arg)?);
         }
 
-        procedure(results)
+        procedure(results, &self.arena)
     }
 
     fn eval_unary_expr(&self, op: UnaryOp, expr: ExprNode) -> VmResult<EvalValue> {
@@ -293,7 +295,12 @@ impl fmt::Display for PrimitiveValue {
     }
 }
 
-fn make_range(start: EvalValue, end: EvalValue, step: EvalValue) -> VmResult<EvalValue> {
+fn make_range(
+    start: EvalValue,
+    end: EvalValue,
+    step: EvalValue,
+    arena: &VectorStore,
+) -> VmResult<EvalValue> {
     let start = get_float_helper(start, "0 (start)")?;
     let end = get_float_helper(end, "1 (end)")?;
     let step = get_float_helper(step, "2 (step)")?;
@@ -318,10 +325,10 @@ fn make_range(start: EvalValue, end: EvalValue, step: EvalValue) -> VmResult<Eva
     }
 
     let mut running = start;
-    let mut out: Vec<f64> = Vec::with_capacity(len);
+    let mut out = arena.get_vector(len);
 
-    for _ in 0..len {
-        out.push(running);
+    for i in 0..len {
+        out[i] = running;
         running += step;
     }
 
