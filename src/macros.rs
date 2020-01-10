@@ -14,7 +14,7 @@ macro_rules! timed {
 
             out
         }
-        
+
         #[cfg(not(feature = "timing"))]
         {
             $to_eval
