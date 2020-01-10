@@ -45,13 +45,38 @@ macro_rules! unary_op_vector {
     ($op:tt, $a:expr, $store:expr) => {
         {
             let a: Box<dyn FloatListValue> = $a;
-            let a: &Vec<f64> = &**a; // TODO: for real?
+            let a: &[f64] = &**a; // TODO: for real?
 
             let mut out = ($store).get_vector(a.len());
             assert_eq!(out.len(), a.len());
 
-            for i in 0 .. a.len() {
-                out[i] = $op a[i];
+            let out_slice: &mut [f64] = &mut out;
+
+            #[cfg(feature = "parallel")]
+            {
+                use rayon::prelude::*;
+
+                let len: usize = out_slice.len();
+                // let out_ptr: SyncMutSlice<'_> = SyncMutSlice { slice: out_slice };
+                let out_ptr: SyncMutPointer<f64> = SyncMutPointer::from(out_slice.as_mut_ptr());
+
+                (0 ..len).step_by(PAR_CHUNK_LEN).collect::<Vec<usize>>().into_par_iter().for_each(|chunk_start| {
+                    // println!("Chunk starting with {}, executed by thread {:?}", chunk_start, rayon::current_thread_index());
+                    let chunk_end = std::cmp::min(len, chunk_start + PAR_CHUNK_LEN);
+                    //let out: &mut [f64] = out_ptr.slice;
+                    let out: &mut [f64] = unsafe { std::slice::from_raw_parts_mut(out_ptr.ptr, len) };
+
+                    for i in chunk_start .. chunk_end {
+                        out[i] = $op a[i];
+                    }
+                });
+            }
+
+            #[cfg(not(feature = "parallel"))]
+            {
+                for i in 0 .. a.len() {
+                    out_slice[i] = $op a[i];
+                }
             }
 
             Box::new(out)
@@ -88,8 +113,33 @@ macro_rules! scalar_vector {
             let mut out = ($store).get_vector(b.len());
             assert_eq!(out.len(), b.len());
 
-            for i in 0 .. b.len() {
-                out[i] = a $op b[i];
+            let out_slice: &mut [f64] = &mut out;
+
+            #[cfg(not(feature = "parallel"))]
+            {
+                for i in 0 .. b.len() {
+                    out_slice[i] = a $op b[i];
+                }
+            }
+
+            #[cfg(feature = "parallel")]
+            {
+                use rayon::prelude::*;
+
+                let len: usize = out_slice.len();
+                // let out_ptr: SyncMutSlice<'_> = SyncMutSlice { slice: out_slice };
+                let out_ptr: SyncMutPointer<f64> = SyncMutPointer::from(out_slice.as_mut_ptr());
+
+                (0 ..len).step_by(PAR_CHUNK_LEN).collect::<Vec<usize>>().into_par_iter().for_each(|chunk_start| {
+                    // println!("Chunk starting with {}, executed by thread {:?}", chunk_start, rayon::current_thread_index());
+                    let chunk_end = std::cmp::min(len, chunk_start + PAR_CHUNK_LEN);
+                    //let out: &mut [f64] = out_ptr.slice;
+                    let out: &mut [f64] = unsafe { std::slice::from_raw_parts_mut(out_ptr.ptr, len) };
+
+                    for i in chunk_start .. chunk_end {
+                        out[i] = a $op b[i];
+                    }
+                });
             }
 
             Box::new(out)
@@ -106,8 +156,33 @@ macro_rules! vector_scalar {
             let mut out = ($store).get_vector(a.len());
             assert_eq!(out.len(), a.len());
 
-            for i in 0 .. a.len() {
-                out[i] = a[i] $op b;
+            let out_slice: &mut [f64] = &mut out;
+
+            #[cfg(not(feature = "parallel"))]
+            {
+                for i in 0 .. a.len() {
+                    out_slice[i] = a[i] $op b;
+                }
+            }
+
+            #[cfg(feature = "parallel")]
+            {
+                use rayon::prelude::*;
+
+                let len: usize = out_slice.len();
+                // let out_ptr: SyncMutSlice<'_> = SyncMutSlice { slice: out_slice };
+                let out_ptr: SyncMutPointer<f64> = SyncMutPointer::from(out_slice.as_mut_ptr());
+
+                (0 ..len).step_by(PAR_CHUNK_LEN).collect::<Vec<usize>>().into_par_iter().for_each(|chunk_start| {
+                    // println!("Chunk starting with {}, executed by thread {:?}", chunk_start, rayon::current_thread_index());
+                    let chunk_end = std::cmp::min(len, chunk_start + PAR_CHUNK_LEN);
+                    //let out: &mut [f64] = out_ptr.slice;
+                    let out: &mut [f64] = unsafe { std::slice::from_raw_parts_mut(out_ptr.ptr, len) };
+
+                    for i in chunk_start .. chunk_end {
+                        out[i] = a[i] $op b;
+                    }
+                });
             }
 
             Box::new(out)
@@ -128,8 +203,33 @@ macro_rules! vector_vector {
             let mut out = ($store).get_vector(a.len());
             assert_eq!(out.len(), a.len());
 
-            for i in 0 .. a.len() {
-                out[i] = a[i] $op b[i];
+            let out_slice: &mut [f64] = &mut out;
+
+            #[cfg(not(feature = "parallel"))]
+            {
+                for i in 0 .. b.len() {
+                    out_slice[i] = a[i] $op b[i];
+                }
+            }
+
+            #[cfg(feature = "parallel")]
+            {
+                use rayon::prelude::*;
+
+                let len: usize = out_slice.len();
+                // let out_ptr: SyncMutSlice<'_> = SyncMutSlice { slice: out_slice };
+                let out_ptr: SyncMutPointer<f64> = SyncMutPointer::from(out_slice.as_mut_ptr());
+
+                (0 ..len).step_by(PAR_CHUNK_LEN).collect::<Vec<usize>>().into_par_iter().for_each(|chunk_start| {
+                    // println!("Chunk starting with {}, executed by thread {:?}", chunk_start, rayon::current_thread_index());
+                    let chunk_end = std::cmp::min(len, chunk_start + PAR_CHUNK_LEN);
+                    //let out: &mut [f64] = out_ptr.slice;
+                    let out: &mut [f64] = unsafe { std::slice::from_raw_parts_mut(out_ptr.ptr, len) };
+
+                    for i in chunk_start .. chunk_end {
+                        out[i] = a[i] $op b[i];
+                    }
+                });
             }
 
             Box::new(out)

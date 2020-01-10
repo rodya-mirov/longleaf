@@ -16,6 +16,20 @@ use parser::ReplInput;
 use vm::VM;
 
 fn main() {
+    #[cfg(feature = "parallel")]
+    {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(8)
+            .build_global()
+            .unwrap();
+
+        println!("Initialized with {} threads", rayon::current_num_threads());
+    }
+    #[cfg(not(feature = "parallel"))]
+    {
+        println!("Initialized in single-threaded mode");
+    }
+
     println!("Welcome to the longleaf REPL. For help, type 'help'.");
     print!("> ");
 
