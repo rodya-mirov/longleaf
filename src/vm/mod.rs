@@ -14,7 +14,7 @@ mod store;
 use store::VectorStore;
 
 const RESERVED_WORDS: Lazy<HashSet<&'static str>> =
-    Lazy::new(|| vec!["sin", "cos", "tan"].into_iter().collect());
+    Lazy::new(|| vec!["sin", "cos", "tan", "range"].into_iter().collect());
 
 pub type VmResult<T> = Result<T, EvalError>;
 
@@ -24,6 +24,8 @@ pub enum EvalError {
     DimensionMismatch(String),
     RedefineReservedWord(String),
     WrongNumArgs(String),
+    TypeMismatch(String),
+    IllegalArgument(String),
 }
 
 /// The result of evaluating an expression
@@ -177,24 +179,45 @@ impl VM {
     fn eval_function_call(&self, name: String, args: Vec<ExprNode>) -> VmResult<EvalValue> {
         let name_str: &str = &name;
         // TODO: this doesn't _feel_ like it's saving a lot of code, it expanded to be enormous
-        let (num_args, procedure): (usize, Box<dyn Fn(Vec<EvalValue>) -> EvalValue>) =
+        let (num_args, procedure): (usize, Box<dyn Fn(Vec<EvalValue>) -> VmResult<EvalValue>>) =
             match name_str {
                 "sin" => (
                     1,
                     Box::new(|mut results| {
-                        unary_fn_switcher!(<f64>::sin, results.pop().unwrap(), &self.arena)
+                        Ok(unary_fn_switcher!(
+                            <f64>::sin,
+                            results.pop().unwrap(),
+                            &self.arena
+                        ))
                     }),
                 ),
                 "cos" => (
                     1,
                     Box::new(|mut results| {
-                        unary_fn_switcher!(<f64>::cos, results.pop().unwrap(), &self.arena)
+                        Ok(unary_fn_switcher!(
+                            <f64>::cos,
+                            results.pop().unwrap(),
+                            &self.arena
+                        ))
                     }),
                 ),
                 "tan" => (
                     1,
                     Box::new(|mut results| {
-                        unary_fn_switcher!(<f64>::tan, results.pop().unwrap(), &self.arena)
+                        Ok(unary_fn_switcher!(
+                            <f64>::tan,
+                            results.pop().unwrap(),
+                            &self.arena
+                        ))
+                    }),
+                ),
+                "range" => (
+                    3,
+                    Box::new(|mut args| {
+                        let step = args.pop().unwrap();
+                        let end = args.pop().unwrap();
+                        let start = args.pop().unwrap();
+                        make_range(start, end, step)
                     }),
                 ),
                 _ => Err(EvalError::UnknownVariable(name_str.to_string()))?,
@@ -215,8 +238,7 @@ impl VM {
             results.push(self.evaluate_expr(arg)?);
         }
 
-        let out = procedure(results);
-        Ok(out)
+        procedure(results)
     }
 
     fn eval_unary_expr(&self, op: UnaryOp, expr: ExprNode) -> VmResult<EvalValue> {
@@ -268,6 +290,51 @@ impl fmt::Display for PrimitiveValue {
                 write!(f, "]")
             }
         }
+    }
+}
+
+fn make_range(start: EvalValue, end: EvalValue, step: EvalValue) -> VmResult<EvalValue> {
+    let start = get_float_helper(start, "0 (start)")?;
+    let end = get_float_helper(end, "1 (end)")?;
+    let step = get_float_helper(step, "2 (step)")?;
+
+    if start < end && step <= 0. {
+        return Err(EvalError::IllegalArgument(
+            "Since start<end, expected argument 2 (step) to be a positive number".to_string(),
+        ));
+    } else if start > end && step >= 0. {
+        return Err(EvalError::IllegalArgument(
+            "Since start>end, expected argument 2 (step) to be a negative number".to_string(),
+        ));
+    }
+
+    let len = { ((end - start) / step).ceil() as usize };
+
+    if len > 100_000_000 {
+        return Err(EvalError::IllegalArgument(format!(
+            "Start/end/step=({}/{}/{}) yields a range of length {} which is not OK",
+            start, end, step, len
+        )));
+    }
+
+    let mut running = start;
+    let mut out: Vec<f64> = Vec::with_capacity(len);
+
+    for _ in 0..len {
+        out.push(running);
+        running += step;
+    }
+
+    Ok(out.into())
+}
+
+fn get_float_helper(f: EvalValue, arg_name: &str) -> VmResult<f64> {
+    match f {
+        EvalValue::Float(f) => Ok(f),
+        EvalValue::FloatList(_) => Err(EvalError::TypeMismatch(format!(
+            "Argument '{}' needed to be a float, but got a float list",
+            arg_name
+        ))),
     }
 }
 

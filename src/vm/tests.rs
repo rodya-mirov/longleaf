@@ -53,3 +53,28 @@ fn var_tests() {
         vec![(vec![5., 27.]).into()],
     );
 }
+
+#[test]
+fn make_range_tests() {
+    fn do_range_test(start: f64, end: f64, step: f64, expected: Vec<f64>) {
+        let actual = make_range(start.into(), end.into(), step.into()).unwrap();
+
+        let expected: EvalValue = expected.into();
+
+        assert_eq!(actual, expected);
+    }
+
+    do_range_test(1., 2., 1., vec![1.]);
+    do_range_test(1., 2., 0.5, vec![1., 1.5]);
+
+    do_range_test(1., 1., 1., vec![]);
+
+    do_range_test(2., 1., -1., vec![2.]);
+    do_range_test(2., 1., -0.5, vec![2., 1.5]);
+    do_range_test(
+        2.,
+        1.,
+        -0.3,
+        vec![2., 2. - 0.3, 2. - 0.3 - 0.3, 2. - 0.3 - 0.3 - 0.3],
+    );
+}
