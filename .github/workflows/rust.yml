@@ -18,7 +18,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: cargo check --features=${{feature-set}}
+      - run: cargo check --features=${{matrix.feature-set}}
 
   test:
     name: Test Suite
@@ -35,7 +35,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: cargo test --features=${{feature-set}}
+      - run: cargo test --features=${{matrix.feature-set}}
 
   fmt:
     name: Rustfmt
@@ -66,4 +66,4 @@ jobs:
           toolchain: stable
           override: true
       - run: rustup component add clippy
-      - run: cargo clippy -- -D warnings --features=${{feature-set}}
+      - run: cargo clippy -- -D warnings --features=${{matrix.feature-set}}
