@@ -13,16 +13,24 @@ macro_rules! unary_fn_switcher {
 macro_rules! unary_fn_vector {
     ($func:expr, $a:expr, $store:expr) => {{
         let a: Box<dyn FloatListValue> = $a;
-        let a: &Vec<f64> = &**a; // TODO: for real?
+        let a: &[f64] = &**a; // TODO: for real?
 
         let func = $func;
 
         let mut out = ($store).get_vector(a.len());
         assert_eq!(out.len(), a.len());
 
-        for i in 0..a.len() {
-            out[i] = func(a[i]);
-        }
+        let out_slice: &mut [f64] = &mut out;
+
+        use rayon::prelude::*;
+
+        out_slice
+            .par_iter_mut()
+            .zip(a.par_iter().copied())
+            .with_min_len(PAR_CHUNK_LEN)
+            .for_each(|(o, i)| {
+                *o = func(i);
+            });
 
         Box::new(out)
     }};
@@ -52,32 +60,11 @@ macro_rules! unary_op_vector {
 
             let out_slice: &mut [f64] = &mut out;
 
-            #[cfg(feature = "parallel")]
-            {
                 use rayon::prelude::*;
 
-                let len: usize = out_slice.len();
-                // let out_ptr: SyncMutSlice<'_> = SyncMutSlice { slice: out_slice };
-                let out_ptr: SyncMutPointer<f64> = SyncMutPointer::from(out_slice.as_mut_ptr());
-
-                (0 ..len).step_by(PAR_CHUNK_LEN).collect::<Vec<usize>>().into_par_iter().for_each(|chunk_start| {
-                    // println!("Chunk starting with {}, executed by thread {:?}", chunk_start, rayon::current_thread_index());
-                    let chunk_end = std::cmp::min(len, chunk_start + PAR_CHUNK_LEN);
-                    //let out: &mut [f64] = out_ptr.slice;
-                    let out: &mut [f64] = unsafe { std::slice::from_raw_parts_mut(out_ptr.ptr, len) };
-
-                    for i in chunk_start .. chunk_end {
-                        out[i] = $op a[i];
-                    }
+                out_slice.par_iter_mut().zip(a.par_iter()).with_min_len(PAR_CHUNK_LEN).for_each(|(o, i)| {
+                    *o = $op i;
                 });
-            }
-
-            #[cfg(not(feature = "parallel"))]
-            {
-                for i in 0 .. a.len() {
-                    out_slice[i] = $op a[i];
-                }
-            }
 
             Box::new(out)
         }
@@ -115,32 +102,11 @@ macro_rules! scalar_vector {
 
             let out_slice: &mut [f64] = &mut out;
 
-            #[cfg(not(feature = "parallel"))]
-            {
-                for i in 0 .. b.len() {
-                    out_slice[i] = a $op b[i];
-                }
-            }
-
-            #[cfg(feature = "parallel")]
-            {
                 use rayon::prelude::*;
 
-                let len: usize = out_slice.len();
-                // let out_ptr: SyncMutSlice<'_> = SyncMutSlice { slice: out_slice };
-                let out_ptr: SyncMutPointer<f64> = SyncMutPointer::from(out_slice.as_mut_ptr());
-
-                (0 ..len).step_by(PAR_CHUNK_LEN).collect::<Vec<usize>>().into_par_iter().for_each(|chunk_start| {
-                    // println!("Chunk starting with {}, executed by thread {:?}", chunk_start, rayon::current_thread_index());
-                    let chunk_end = std::cmp::min(len, chunk_start + PAR_CHUNK_LEN);
-                    //let out: &mut [f64] = out_ptr.slice;
-                    let out: &mut [f64] = unsafe { std::slice::from_raw_parts_mut(out_ptr.ptr, len) };
-
-                    for i in chunk_start .. chunk_end {
-                        out[i] = a $op b[i];
-                    }
+                out_slice.par_iter_mut().zip(b.par_iter()).with_min_len(PAR_CHUNK_LEN).for_each(|(o, bi)| {
+                    *o = a $op bi;
                 });
-            }
 
             Box::new(out)
         }
@@ -158,32 +124,12 @@ macro_rules! vector_scalar {
 
             let out_slice: &mut [f64] = &mut out;
 
-            #[cfg(not(feature = "parallel"))]
-            {
-                for i in 0 .. a.len() {
-                    out_slice[i] = a[i] $op b;
-                }
-            }
 
-            #[cfg(feature = "parallel")]
-            {
                 use rayon::prelude::*;
 
-                let len: usize = out_slice.len();
-                // let out_ptr: SyncMutSlice<'_> = SyncMutSlice { slice: out_slice };
-                let out_ptr: SyncMutPointer<f64> = SyncMutPointer::from(out_slice.as_mut_ptr());
-
-                (0 ..len).step_by(PAR_CHUNK_LEN).collect::<Vec<usize>>().into_par_iter().for_each(|chunk_start| {
-                    // println!("Chunk starting with {}, executed by thread {:?}", chunk_start, rayon::current_thread_index());
-                    let chunk_end = std::cmp::min(len, chunk_start + PAR_CHUNK_LEN);
-                    //let out: &mut [f64] = out_ptr.slice;
-                    let out: &mut [f64] = unsafe { std::slice::from_raw_parts_mut(out_ptr.ptr, len) };
-
-                    for i in chunk_start .. chunk_end {
-                        out[i] = a[i] $op b;
-                    }
+                out_slice.par_iter_mut().zip(a.par_iter()).with_min_len(PAR_CHUNK_LEN).for_each(|(o, ai)| {
+                    *o = ai $op b;
                 });
-            }
 
             Box::new(out)
         }
@@ -205,32 +151,11 @@ macro_rules! vector_vector {
 
             let out_slice: &mut [f64] = &mut out;
 
-            #[cfg(not(feature = "parallel"))]
-            {
-                for i in 0 .. b.len() {
-                    out_slice[i] = a[i] $op b[i];
-                }
-            }
-
-            #[cfg(feature = "parallel")]
-            {
                 use rayon::prelude::*;
 
-                let len: usize = out_slice.len();
-                // let out_ptr: SyncMutSlice<'_> = SyncMutSlice { slice: out_slice };
-                let out_ptr: SyncMutPointer<f64> = SyncMutPointer::from(out_slice.as_mut_ptr());
-
-                (0 ..len).step_by(PAR_CHUNK_LEN).collect::<Vec<usize>>().into_par_iter().for_each(|chunk_start| {
-                    // println!("Chunk starting with {}, executed by thread {:?}", chunk_start, rayon::current_thread_index());
-                    let chunk_end = std::cmp::min(len, chunk_start + PAR_CHUNK_LEN);
-                    //let out: &mut [f64] = out_ptr.slice;
-                    let out: &mut [f64] = unsafe { std::slice::from_raw_parts_mut(out_ptr.ptr, len) };
-
-                    for i in chunk_start .. chunk_end {
-                        out[i] = a[i] $op b[i];
-                    }
+                out_slice.par_iter_mut().zip(a.par_iter()).zip(b.par_iter()).with_min_len(PAR_CHUNK_LEN).for_each(|((o, ai), bi)| {
+                    *o = ai $op bi;
                 });
-            }
 
             Box::new(out)
         }

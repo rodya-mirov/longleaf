@@ -8,15 +8,9 @@ use crate::parser::*;
 #[macro_use]
 mod macros;
 
-#[cfg(feature = "parallel")]
-mod ptrs;
-#[cfg(feature = "parallel")]
-use ptrs::SyncMutPointer;
-
 mod store;
 use store::VectorStore;
 
-#[cfg(feature = "parallel")]
 const PAR_CHUNK_LEN: usize = 128; // TODO: find the right chunk length
 
 // This is the whole point of once_cell; it's been vetted, it works
