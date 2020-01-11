@@ -1,7 +1,8 @@
-Initialized with 8 threads
+Initialized with 4 threads
 Welcome to the longleaf REPL. For help, type 'help'.
-> Took 62 ms
-> Took 98 ms
-> Took 62 ms
-> Took 65 ms
+> Took 59 ms
+> Took 78 ms
+> Took 56 ms
+> Took 53 ms
+> Took 107 ms
 > 

@@ -1,7 +1,8 @@
 Initialized in single-threaded mode
 Welcome to the longleaf REPL. For help, type 'help'.
-> Took 64 ms
-> Took 155 ms
-> Took 95 ms
-> Took 89 ms
+> Took 60 ms
+> Took 143 ms
+> Took 94 ms
+> Took 96 ms
+> Took 370 ms
 > 
