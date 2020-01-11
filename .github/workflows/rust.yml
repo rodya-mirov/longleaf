@@ -10,7 +10,6 @@ jobs:
       matrix:
         feature-set:
           - ""
-          - "parallel"
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -27,7 +26,6 @@ jobs:
       matrix:
         feature-set:
           - ""
-          - "parallel"
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -57,7 +55,6 @@ jobs:
       matrix:
         feature-set:
           - ""
-          - "parallel"
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
