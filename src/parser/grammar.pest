@@ -32,7 +32,17 @@ unary_expr =
     | unary_op ~ unary_expr
     }
 
-base_expr = { paren_expr | function_call | id | float | float_list }
+base_expr = { paren_expr | function_call | id | float | float_list | function_definition }
+
+function_definition =
+    // we can have \x => x*12, or () => x*12, or (\x, \y, \z,) => x+y+z, or etc.
+    { escaped_id ~ "=>" ~ expr
+    | "(" ~ ")" ~ "=>" ~ expr
+    | "(" ~ escaped_id ~ ( "," ~ escaped_id )* ~ (",")? ~ ")" ~ "=>" ~ expr
+    }
+
+
+escaped_id = @{ "\\" ~ id }
 
 function_call =
     { id ~ "(" ~ ")"

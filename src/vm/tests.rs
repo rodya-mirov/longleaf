@@ -12,9 +12,8 @@ fn run_repl_inputs(input: &[&str], expected: Vec<EvalValue>) {
             ReplInput::Expr(expr) => {
                 actual.push(vm.evaluate_expr(expr).unwrap());
             }
-            ReplInput::VarDefn(id, expr) => {
-                let val = vm.evaluate_expr(expr).unwrap();
-                vm.define_variable(&id, val).unwrap();
+            ReplInput::Statement(stmt) => {
+                vm.evaluate_statement(stmt).unwrap();
             }
             other => {
                 panic!("Expected executable input, got {:?}", other);

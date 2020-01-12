@@ -44,17 +44,14 @@ fn main() {
                 print_quit_dialogue();
                 break 'main_loop;
             }
-            Ok(ReplInput::VarDefn(name, expr_node)) => match timed!(vm.evaluate_expr(expr_node)) {
-                Ok(val) => {
-                    let def_result = vm.define_variable(&name, val);
-                    if let Err(e) = def_result {
-                        println!("Error defining variable {}: {:?}", name, e);
+            Ok(ReplInput::Statement(statement_node)) => {
+                match timed!(vm.evaluate_statement(statement_node)) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!("Error processing statement: {:?}", e);
                     }
                 }
-                Err(e) => {
-                    println!("Error evaluating expression: {:?}", e);
-                }
-            },
+            }
             Ok(ReplInput::Expr(expr_node)) => match timed!(vm.evaluate_expr(expr_node)) {
                 Ok(val) => {
                     println!("{:?}", val);

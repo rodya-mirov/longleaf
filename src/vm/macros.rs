@@ -4,8 +4,11 @@ macro_rules! unary_fn_switcher {
         let func = $func;
 
         match a {
-            EvalValue::Float(a) => EvalValue::Float(func(a)),
-            EvalValue::FloatList(a) => EvalValue::FloatList(unary_fn_vector!(func, a, $store)),
+            EvalValue::Float(a) => Ok(EvalValue::Float(func(a))),
+            EvalValue::FloatList(a) => Ok(EvalValue::FloatList(unary_fn_vector!(func, a, $store))),
+            EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+                "Expected a float or vector; got a function"
+            ))),
         }
     }};
 }
@@ -42,8 +45,11 @@ macro_rules! unary_switcher {
             let a: EvalValue = $a;
 
             match a {
-                EvalValue::Float(a) => EvalValue::Float($op a),
-                EvalValue::FloatList(a) => EvalValue::FloatList(unary_op_vector!($op, a, $store)),
+                EvalValue::Float(a) => Ok(EvalValue::Float($op a)),
+                EvalValue::FloatList(a) => Ok(EvalValue::FloatList(unary_op_vector!($op, a, $store))),
+                EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+                    "Expected a float or vector; got a function"
+                ))),
             }
         }
     }
@@ -79,13 +85,22 @@ macro_rules! binary_switcher {
 
             match a {
                 EvalValue::Float(a) => match b {
-                    EvalValue::Float(b) => EvalValue::Float(a $op b),
-                    EvalValue::FloatList(b) => EvalValue::FloatList(scalar_vector!($op, a, b, $store)),
+                    EvalValue::Float(b) => Ok(EvalValue::Float(a $op b)),
+                    EvalValue::FloatList(b) => Ok(EvalValue::FloatList(scalar_vector!($op, a, b, $store))),
+                    EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+                        "Expected a float or vector; got a function"
+                    ))),
                 },
                 EvalValue::FloatList(a) => match b {
-                    EvalValue::Float(b) => EvalValue::FloatList(vector_scalar!($op, a, b, $store)),
-                    EvalValue::FloatList(b) => EvalValue::FloatList(vector_vector!($op, a, b, $store)),
+                    EvalValue::Float(b) => Ok(EvalValue::FloatList(vector_scalar!($op, a, b, $store))),
+                    EvalValue::FloatList(b) => Ok(EvalValue::FloatList(vector_vector!($op, a, b, $store))),
+                    EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+                        "Expected a float or vector; got a function"
+                    ))),
                 },
+                EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+                    "Expected a float or vector; got a function"
+                ))),
             }
         }
     };
