@@ -54,6 +54,23 @@ fn var_tests() {
 }
 
 #[test]
+fn func_tests() {
+    // Simple function, testing late bound values
+    run_repl_inputs(
+        &[
+            "f = \\x => x + 15 * y;",
+            "y = [12, 11];",
+            "f([1, 2])",
+            "f([0, 0])",
+        ],
+        // 15 * y is [180, 165]
+        vec![vec![181., 167.].into(), vec![180., 165.].into()],
+    );
+
+    // Nested functions don't work, there is an open issue for this
+}
+
+#[test]
 fn make_range_tests() {
     fn do_range_test(start: f64, end: f64, step: f64, expected: Vec<f64>) {
         let store = VectorStore::new();
