@@ -1,6 +1,5 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
-use std::ops::Deref;
 use std::rc::Rc;
 
 use crate::parser::*;
@@ -11,9 +10,14 @@ mod macros;
 mod store;
 use store::VectorStore;
 
+mod namespace;
+use namespace::Namespace;
+
+mod values;
+use values::{EvalValue, FloatListValue, PrimitiveValue};
+
 const PAR_CHUNK_LEN: usize = 128; // TODO: find the right chunk length
 
-// This is the whole point of once_cell; it's been vetted, it works
 lazy_static! {
     static ref RESERVED_WORDS: HashSet<&'static str> =
         vec!["sin", "cos", "tan", "range"].into_iter().collect();
@@ -31,117 +35,20 @@ pub enum EvalError {
     IllegalArgument(String),
 }
 
-/// The result of evaluating an expression
-#[derive(Debug)]
-pub enum EvalValue {
-    Float(f64),
-    FloatList(Box<dyn FloatListValue>),
-}
-
-impl PartialEq for EvalValue {
-    fn eq(&self, other: &EvalValue) -> bool {
-        use EvalValue::*;
-
-        match self {
-            Float(a) => match other {
-                Float(b) => a == b,
-                _ => false,
-            },
-            FloatList(a) => match other {
-                FloatList(b) => a == b,
-                _ => false,
-            },
-        }
-    }
-}
-
-impl From<EvalValue> for PrimitiveValue {
-    fn from(ev: EvalValue) -> PrimitiveValue {
-        match ev {
-            EvalValue::Float(f) => PrimitiveValue::Float(f),
-            EvalValue::FloatList(vals) => {
-                let fl = vals.to_float_list();
-                PrimitiveValue::FloatList(fl)
-            }
-        }
-    }
-}
-
-impl From<f64> for EvalValue {
-    fn from(f: f64) -> EvalValue {
-        EvalValue::Float(f)
-    }
-}
-
-impl From<Vec<f64>> for EvalValue {
-    fn from(vals: Vec<f64>) -> EvalValue {
-        EvalValue::FloatList(Box::new(Box::new(vals)))
-    }
-}
-
-/// Trait describing actions which a FloatListValue must satisfy.
-/// The return type EvalValue only guarantees that (float lists) must satisfy
-/// this behavior. In particular it does not guarantee any kind of mutability,
-/// because this may be a view into a saved vector.
-// TODO: make the Vec<f64> be a slice??? Better for parallelization
-pub trait FloatListValue: Deref<Target = Vec<f64>> + std::fmt::Debug {
-    fn to_float_list(self: Box<Self>) -> Rc<Vec<f64>>;
-}
-
-impl PartialEq for dyn FloatListValue {
-    fn eq(&self, other: &dyn FloatListValue) -> bool {
-        let a_vec: &Vec<f64> = self; // deref-magic
-        let b_vec: &Vec<f64> = other;
-
-        a_vec == b_vec
-    }
-}
-
-// TODO: do something about this double indirection? We end up with a Box<Box<Vec>>
-impl FloatListValue for Box<Vec<f64>> {
-    fn to_float_list(self: Box<Self>) -> Rc<Vec<f64>> {
-        Rc::new(**self)
-    }
-}
-
-// TODO: do something about this double indirection? We end up with a Box<Rc<Vec>>
-impl FloatListValue for Rc<Vec<f64>> {
-    fn to_float_list(self: Box<Self>) -> Rc<Vec<f64>> {
-        *self
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum PrimitiveValue {
-    Float(f64),
-    FloatList(Rc<Vec<f64>>),
-}
-
-impl PrimitiveValue {
-    fn to_eval_value(&self) -> EvalValue {
-        match self {
-            PrimitiveValue::Float(f) => EvalValue::Float(*f),
-            PrimitiveValue::FloatList(vals) => EvalValue::FloatList(Box::new(vals.clone())),
-        }
-    }
-}
-
 pub struct VM {
-    variable_definitions: HashMap<String, PrimitiveValue>,
+    variable_definitions: Namespace,
     arena: VectorStore,
 }
-
-type VmFunction<'a> = Box<dyn Fn(Vec<EvalValue>, &'a VectorStore) -> VmResult<EvalValue>>;
 
 impl VM {
     pub fn new() -> Self {
         VM {
-            variable_definitions: HashMap::new(),
+            variable_definitions: Namespace::new(),
             arena: VectorStore::new(),
         }
     }
 
-    pub fn define_variable<T>(&mut self, name: &str, value: T) -> VmResult<()>
+    fn define_variable<T>(&mut self, name: &str, value: T) -> VmResult<()>
     where
         T: Into<PrimitiveValue>,
     {
@@ -153,11 +60,21 @@ impl VM {
         }
         let name = name.to_string();
 
-        self.variable_definitions.insert(name, value.into());
+        self.variable_definitions
+            .define_variable(name, value.into());
         Ok(())
     }
 
-    pub fn evaluate_expr(&self, expr: ExprNode) -> VmResult<EvalValue> {
+    pub fn evaluate_statement(&mut self, stmt: StatementNode) -> VmResult<()> {
+        match stmt {
+            StatementNode::VarDefn(name, expr) => {
+                let val = self.evaluate_expr(expr)?;
+                self.define_variable(&name, val)
+            }
+        }
+    }
+
+    pub fn evaluate_expr(&mut self, expr: ExprNode) -> VmResult<EvalValue> {
         let out: EvalValue = match expr {
             ExprNode::Float(f) => EvalValue::Float(f),
             // TODO: This double-indirection is embarassing
@@ -165,8 +82,12 @@ impl VM {
             ExprNode::FunctionCall(name, args) => self.eval_function_call(name, args)?,
             ExprNode::UnaryExpr(op, val) => self.eval_unary_expr(op, *val)?,
             ExprNode::BinaryExpr(op, a, b) => self.eval_binary_expr(op, *a, *b)?,
+            ExprNode::FunctionDefn(args, expr) => EvalValue::FunctionDefinition(
+                Rc::new(values::Args { names: args.0 }),
+                Rc::new(*expr),
+            ),
             ExprNode::VariableRef(id) => {
-                let stored = self.variable_definitions.get(&id);
+                let stored = self.variable_definitions.lookup_variable(&id);
                 match stored {
                     None => {
                         return Err(EvalError::UnknownVariable(format!(
@@ -181,50 +102,32 @@ impl VM {
         Ok(out)
     }
 
-    fn eval_function_call(&self, name: String, args: Vec<ExprNode>) -> VmResult<EvalValue> {
+    fn eval_function_call(&mut self, name: String, args: Vec<ExprNode>) -> VmResult<EvalValue> {
         let name_str: &str = &name;
-        // TODO: this doesn't _feel_ like it's saving a lot of code, it expanded to be enormous
-        let (num_args, procedure): (usize, VmFunction<'_>) = match name_str {
-            "sin" => (
-                1,
-                Box::new(|mut results, arena| {
-                    Ok(unary_fn_switcher!(
-                        <f64>::sin,
-                        results.pop().unwrap(),
-                        arena
-                    ))
-                }),
-            ),
-            "cos" => (
-                1,
-                Box::new(|mut results, arena| {
-                    Ok(unary_fn_switcher!(
-                        <f64>::cos,
-                        results.pop().unwrap(),
-                        arena
-                    ))
-                }),
-            ),
-            "tan" => (
-                1,
-                Box::new(|mut results, arena| {
-                    Ok(unary_fn_switcher!(
-                        <f64>::tan,
-                        results.pop().unwrap(),
-                        arena
-                    ))
-                }),
-            ),
-            "range" => (
-                3,
-                Box::new(|mut args, arena| {
-                    let step = args.pop().unwrap();
-                    let end = args.pop().unwrap();
-                    let start = args.pop().unwrap();
-                    make_range(start, end, step, arena)
-                }),
-            ),
-            _ => return Err(EvalError::UnknownVariable(name_str.to_string())),
+
+        let num_args: usize = match name_str {
+            "sin" => 1,
+            "cos" => 1,
+            "tan" => 1,
+            "range" => 3,
+            other => match self.variable_definitions.lookup_variable(other) {
+                None => {
+                    return Err(EvalError::UnknownVariable(other.to_string()));
+                }
+                Some(PrimitiveValue::FunctionDefinition(fn_args, _expr)) => fn_args.names.len(),
+                Some(PrimitiveValue::Float(_)) => {
+                    return Err(EvalError::TypeMismatch(format!(
+                        "Name {} is associated to a float, but needed a function",
+                        name_str
+                    )));
+                }
+                Some(PrimitiveValue::FloatList(_)) => {
+                    return Err(EvalError::TypeMismatch(format!(
+                        "Name {} is associated to a float list, but needed a function",
+                        name_str
+                    )));
+                }
+            },
         };
 
         if args.len() != num_args {
@@ -242,36 +145,64 @@ impl VM {
             results.push(self.evaluate_expr(arg)?);
         }
 
-        procedure(results, &self.arena)
+        match name_str {
+            "sin" => unary_fn_switcher!(<f64>::sin, results.pop().unwrap(), &self.arena),
+            "cos" => unary_fn_switcher!(<f64>::cos, results.pop().unwrap(), &self.arena),
+            "tan" => unary_fn_switcher!(<f64>::tan, results.pop().unwrap(), &self.arena),
+            "range" => {
+                let step = results.pop().unwrap();
+                let end = results.pop().unwrap();
+                let start = results.pop().unwrap();
+                make_range(start, end, step, &self.arena)
+            }
+            other => {
+                let (fn_args, fn_expr) = match self.variable_definitions.lookup_variable(other) {
+                    Some(PrimitiveValue::FunctionDefinition(fn_args, fn_expr)) => {
+                        (fn_args.clone(), fn_expr.clone())
+                    }
+                    _ => unreachable!(),
+                };
+
+                self.variable_definitions.start_call();
+
+                for (arg_name, arg_val) in fn_args.names.iter().zip(results.into_iter()) {
+                    self.variable_definitions
+                        .define_variable(arg_name.to_string(), arg_val.into());
+                }
+
+                // TODO: make this easier to clone?
+                let res = self.evaluate_expr(fn_expr.as_ref().clone());
+
+                self.variable_definitions.end_call();
+
+                res
+            }
+        }
     }
 
-    fn eval_unary_expr(&self, op: UnaryOp, expr: ExprNode) -> VmResult<EvalValue> {
+    fn eval_unary_expr(&mut self, op: UnaryOp, expr: ExprNode) -> VmResult<EvalValue> {
         use UnaryOp::*;
 
         let inner: EvalValue = self.evaluate_expr(expr)?;
 
-        let out: EvalValue = match op {
+        match op {
             Negate => unary_switcher!(-, inner, &self.arena),
-        };
-
-        Ok(out)
+        }
     }
 
     #[allow(clippy::cognitive_complexity)] // False positive from macro expansions
-    fn eval_binary_expr(&self, op: BinaryOp, a: ExprNode, b: ExprNode) -> VmResult<EvalValue> {
+    fn eval_binary_expr(&mut self, op: BinaryOp, a: ExprNode, b: ExprNode) -> VmResult<EvalValue> {
         use BinaryOp::*;
 
         let a: EvalValue = self.evaluate_expr(a)?;
         let b: EvalValue = self.evaluate_expr(b)?;
 
-        let out: EvalValue = match op {
+        match op {
             Plus => binary_switcher!(+, a, b, &self.arena),
             Minus => binary_switcher!(-, a, b, &self.arena),
             Times => binary_switcher!(*, a, b, &self.arena),
             Divide => binary_switcher!(/, a, b, &self.arena),
-        };
-
-        Ok(out)
+        }
     }
 }
 
@@ -279,6 +210,9 @@ impl fmt::Display for PrimitiveValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             PrimitiveValue::Float(val) => write!(f, "{}", val),
+            PrimitiveValue::FunctionDefinition(args, _expr) => {
+                write!(f, "Function of {} arguments", args.names.len())
+            }
             PrimitiveValue::FloatList(vals) => {
                 write!(f, "[")?;
                 if vals.is_empty() {
@@ -342,6 +276,10 @@ fn get_float_helper(f: EvalValue, arg_name: &str) -> VmResult<f64> {
         EvalValue::Float(f) => Ok(f),
         EvalValue::FloatList(_) => Err(EvalError::TypeMismatch(format!(
             "Argument '{}' needed to be a float, but got a float list",
+            arg_name
+        ))),
+        EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+            "Argument '{}' needed to be a float, but got a function",
             arg_name
         ))),
     }

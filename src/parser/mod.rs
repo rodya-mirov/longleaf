@@ -12,13 +12,22 @@ pub type ParseResult<T> = Result<T, String>;
 #[derive(PartialEq, Debug, Clone)]
 pub enum ReplInput {
     Expr(ExprNode),
-    VarDefn(String, ExprNode),
+    Statement(StatementNode),
     Exit,
     Help,
 }
 
 #[derive(PartialEq, Debug, Clone)]
+pub enum StatementNode {
+    VarDefn(String, ExprNode),
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct Args(pub Vec<String>);
+
+#[derive(PartialEq, Debug, Clone)]
 pub enum ExprNode {
+    FunctionDefn(Args, Box<ExprNode>),
     VariableRef(String),
     Float(f64),
     FloatList(Vec<f64>),
@@ -58,23 +67,7 @@ pub fn parse_repl_input(input: &str) -> ParseResult<ReplInput> {
 
     match actual_input.as_rule() {
         Rule::expr => Ok(ReplInput::Expr(compile_expr_node(actual_input))),
-        Rule::statement => {
-            let statement_node = only_child(actual_input);
-            match statement_node.as_rule() {
-                Rule::var_defn_stmt => {
-                    let mut pairs = statement_node.into_inner();
-                    let id = pairs.next().unwrap().as_str().trim().to_string();
-                    let expr = compile_expr_node(pairs.next().unwrap());
-                    assert!(pairs.next().is_none());
-
-                    Ok(ReplInput::VarDefn(id, expr))
-                }
-                other => panic!(
-                    "Unexpected rule match {:?} when parsing REPL input line",
-                    other
-                ),
-            }
-        }
+        Rule::statement => Ok(ReplInput::Statement(compile_statement_node(actual_input))),
         Rule::quit => Ok(ReplInput::Exit),
         Rule::help => Ok(ReplInput::Help),
         other => panic!(
@@ -98,6 +91,27 @@ fn only_child(pair: Pair<'_, Rule>) -> Pair<'_, Rule> {
     }
 
     next.unwrap()
+}
+
+fn compile_statement_node(parsed: Pair<'_, Rule>) -> StatementNode {
+    assert_eq!(parsed.as_rule(), Rule::statement);
+
+    let statement_node = only_child(parsed);
+
+    match statement_node.as_rule() {
+        Rule::var_defn_stmt => {
+            let mut pairs = statement_node.into_inner();
+            let id = pairs.next().unwrap().as_str().trim().to_string();
+            let expr = compile_expr_node(pairs.next().unwrap());
+            assert!(pairs.next().is_none());
+
+            StatementNode::VarDefn(id, expr)
+        }
+        other => panic!(
+            "Unexpected rule match {:?} when parsing REPL input line",
+            other
+        ),
+    }
 }
 
 fn compile_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
@@ -195,8 +209,46 @@ fn compile_base_expr_node(pair: Pair<'_, Rule>) -> ExprNode {
         Rule::paren_expr => compile_expr_node(only_child(pair)),
         Rule::id => ExprNode::VariableRef(compile_id(pair)),
         Rule::function_call => compile_function_call(pair),
+        Rule::function_definition => compile_function_defn_expr(pair),
         other => panic!("Unexpected rule {:?} as child of base_expr", other),
     }
+}
+
+fn compile_function_defn_expr(pair: Pair<'_, Rule>) -> ExprNode {
+    assert_eq!(pair.as_rule(), Rule::function_definition);
+
+    let mut args: Vec<String> = Vec::new();
+    let mut eval_expr: Option<ExprNode> = None;
+
+    for child in pair.into_inner() {
+        match child.as_rule() {
+            Rule::escaped_id => {
+                assert!(eval_expr.is_none());
+
+                let id = compile_escaped_id(child);
+                args.push(id);
+            }
+            Rule::expr => {
+                assert!(eval_expr.is_none());
+
+                eval_expr = Some(compile_expr_node(child));
+            }
+            other => {
+                panic!("Received rule {:?} when parsing function definition", other);
+            }
+        }
+    }
+
+    assert!(eval_expr.is_some());
+
+    let args = Args(args);
+    ExprNode::FunctionDefn(args, Box::new(eval_expr.unwrap()))
+}
+
+fn compile_escaped_id(pair: Pair<'_, Rule>) -> String {
+    assert_eq!(pair.as_rule(), Rule::escaped_id);
+
+    pair.as_str().chars().skip(1).collect()
 }
 
 fn compile_function_call(pair: Pair<'_, Rule>) -> ExprNode {

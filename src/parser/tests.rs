@@ -103,6 +103,45 @@ fn to_expr_tests() {
             )),
         ),
     );
+
+    do_test(
+        "12 + \\x => x + 12",
+        BinaryExpr(
+            Plus,
+            Box::new(Float(12.)),
+            Box::new(FunctionDefn(
+                args(&["x"]),
+                Box::new(BinaryExpr(Plus, var_ref("x"), Box::new(Float(12.)))),
+            )),
+        ),
+    );
+
+    do_test(
+        "12 + \\x => \\y => x + y + 12",
+        BinaryExpr(
+            Plus,
+            Box::new(Float(12.)),
+            Box::new(FunctionDefn(
+                args(&["x"]),
+                Box::new(FunctionDefn(
+                    args(&["y"]),
+                    Box::new(BinaryExpr(
+                        Plus,
+                        var_ref("x"),
+                        Box::new(BinaryExpr(Plus, var_ref("y"), Box::new(Float(12.)))),
+                    )),
+                )),
+            )),
+        ),
+    );
+}
+
+fn var_ref(name: &str) -> Box<ExprNode> {
+    Box::new(VariableRef(name.to_string()))
+}
+
+fn args(args: &[&str]) -> Args {
+    Args(args.iter().map(|s| s.to_string()).collect())
 }
 
 fn to_float_list(s: &str) -> ParseResult<Vec<f64>> {

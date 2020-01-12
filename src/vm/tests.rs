@@ -12,9 +12,8 @@ fn run_repl_inputs(input: &[&str], expected: Vec<EvalValue>) {
             ReplInput::Expr(expr) => {
                 actual.push(vm.evaluate_expr(expr).unwrap());
             }
-            ReplInput::VarDefn(id, expr) => {
-                let val = vm.evaluate_expr(expr).unwrap();
-                vm.define_variable(&id, val).unwrap();
+            ReplInput::Statement(stmt) => {
+                vm.evaluate_statement(stmt).unwrap();
             }
             other => {
                 panic!("Expected executable input, got {:?}", other);
@@ -52,6 +51,23 @@ fn var_tests() {
         &["x=[1,3]+[0,1];", "y=[17];", "z=3;", "x*[2,6]+z"],
         vec![(vec![5., 27.]).into()],
     );
+}
+
+#[test]
+fn func_tests() {
+    // Simple function, testing late bound values
+    run_repl_inputs(
+        &[
+            "f = \\x => x + 15 * y;",
+            "y = [12, 11];",
+            "f([1, 2])",
+            "f([0, 0])",
+        ],
+        // 15 * y is [180, 165]
+        vec![vec![181., 167.].into(), vec![180., 165.].into()],
+    );
+
+    // Nested functions don't work, there is an open issue for this
 }
 
 #[test]
