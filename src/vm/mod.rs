@@ -46,23 +46,6 @@ impl VM {
         }
     }
 
-    fn define_variable<T>(&mut self, name: &str, value: T) -> VmResult<()>
-    where
-        T: Into<LongleafValue>,
-    {
-        if RESERVED_WORDS.contains(name) {
-            return Err(EvalError::RedefineReservedWord(format!(
-                "Cannot associate a value to name {}, because it is reserved",
-                name
-            )));
-        }
-        let name = name.to_string();
-
-        self.variable_definitions
-            .define_variable(name, value.into());
-        Ok(())
-    }
-
     pub fn evaluate_statement(&mut self, stmt: StatementNode) -> VmResult<()> {
         match stmt {
             StatementNode::VarDefn(name, expr) => {
@@ -99,6 +82,23 @@ impl VM {
             }
         };
         Ok(out)
+    }
+
+    fn define_variable<T>(&mut self, name: &str, value: T) -> VmResult<()>
+    where
+        T: Into<LongleafValue>,
+    {
+        if RESERVED_WORDS.contains(name) {
+            return Err(EvalError::RedefineReservedWord(format!(
+                "Cannot associate a value to name {}, because it is reserved",
+                name
+            )));
+        }
+        let name = name.to_string();
+
+        self.variable_definitions
+            .define_variable(name, value.into());
+        Ok(())
     }
 
     fn eval_function_call(&mut self, name: String, args: Vec<ExprNode>) -> VmResult<LongleafValue> {
@@ -215,7 +215,9 @@ impl fmt::Display for LongleafValue {
         match self {
             LongleafValue::Float(val) => write!(f, "{}", val),
             LongleafValue::FunctionDefinition(args, _expr) => {
-                write!(f, "Function of {} arguments", args.names.len())
+                let len = args.names.len();
+                let plural = if len > 1 { "s" } else { "" };
+                write!(f, "(function which takes {} argument{})", len, plural)
             }
             LongleafValue::FloatList(vals) => {
                 write!(f, "[")?;
@@ -223,12 +225,28 @@ impl fmt::Display for LongleafValue {
                     write!(f, "]")?;
                     return Ok(());
                 }
-                let mut iter = vals.iter();
-                write!(f, "{}", iter.next().unwrap())?;
 
-                for next in iter {
-                    write!(f, ", {}", next)?;
+                if vals.len() < 10 {
+                    let mut iter = vals.iter();
+                    write!(f, "{}", iter.next().unwrap())?;
+
+                    for next in iter {
+                        write!(f, ", {}", next)?;
+                    }
+                } else {
+                    write!(f, "{}", vals[0])?;
+
+                    for v in &vals[1..5] {
+                        write!(f, ", {}", v)?;
+                    }
+
+                    write!(f, ", ...")?;
+
+                    for v in &vals[vals.len()-5..] {
+                        write!(f, ", {}", v)?;
+                    }
                 }
+
                 write!(f, "]")
             }
         }
