@@ -5,7 +5,7 @@ use std::rc::Rc;
 use crate::parser::{BinaryOp, ExprNode, StatementNode, UnaryOp};
 
 #[macro_use]
-mod macros;
+mod eval_macros;
 
 use crate::vector_store::VectorStore;
 
