@@ -78,7 +78,23 @@ fn func_tests() {
         to_ll_values(vec![vec![181., 167.], vec![180., 165.]]),
     );
 
-    // Nested functions don't work, there is an open issue for this
+    // Closures don't work and nested calls don't work, there is an open issue for this
+}
+
+#[test]
+fn block_func_tests() {
+    // Simple function, testing late bound values
+    run_repl_inputs(
+        &[
+            "f = \\x => {z = x + 1; return z * y;};",
+            "y = [12, 11];",
+            "f([1, 2])",
+            "f([-1, -1])",
+        ],
+        to_ll_values(vec![vec![24., 33.], vec![0., 0.]]),
+    );
+
+    // Closures don't work and nested calls don't work, there is an open issue for this
 }
 
 #[test]
