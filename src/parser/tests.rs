@@ -2,6 +2,7 @@ use super::*;
 
 use super::BinaryOp::*;
 use super::ExprNode::*;
+use super::StatementNode::*;
 use super::UnaryOp::*;
 
 type ParseResult<T> = Result<T, ()>;
@@ -111,7 +112,11 @@ fn to_expr_tests() {
             Box::new(Float(12.)),
             Box::new(FunctionDefn(
                 args(&["x"]),
-                Box::new(BinaryExpr(Plus, var_ref("x"), Box::new(Float(12.)))),
+                vec![ReturnStmt(BinaryExpr(
+                    Plus,
+                    var_ref("x"),
+                    Box::new(Float(12.)),
+                ))],
             )),
         ),
     );
@@ -123,14 +128,39 @@ fn to_expr_tests() {
             Box::new(Float(12.)),
             Box::new(FunctionDefn(
                 args(&["x"]),
-                Box::new(FunctionDefn(
+                vec![ReturnStmt(FunctionDefn(
                     args(&["y"]),
-                    Box::new(BinaryExpr(
+                    vec![ReturnStmt(BinaryExpr(
                         Plus,
                         var_ref("x"),
                         Box::new(BinaryExpr(Plus, var_ref("y"), Box::new(Float(12.)))),
-                    )),
-                )),
+                    ))],
+                ))],
+            )),
+        ),
+    );
+
+    do_test(
+        "12 + \\x => { f = \\y => x + y + 12; return f(x); }",
+        BinaryExpr(
+            Plus,
+            Box::new(Float(12.)),
+            Box::new(FunctionDefn(
+                args(&["x"]),
+                vec![
+                    VarDefn(
+                        "f".to_string(),
+                        FunctionDefn(
+                            args(&["y"]),
+                            vec![ReturnStmt(BinaryExpr(
+                                Plus,
+                                var_ref("x"),
+                                Box::new(BinaryExpr(Plus, var_ref("y"), Box::new(Float(12.)))),
+                            ))],
+                        ),
+                    ),
+                    ReturnStmt(FunctionCall("f".to_string(), vec![*var_ref("x")])),
+                ],
             )),
         ),
     );

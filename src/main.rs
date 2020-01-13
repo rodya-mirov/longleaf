@@ -7,6 +7,8 @@ extern crate lazy_static;
 use std::io::{self, prelude::*};
 
 mod parser;
+mod values;
+mod vector_store;
 mod vm;
 
 #[macro_use]
@@ -54,7 +56,7 @@ fn main() {
             }
             Ok(ReplInput::Expr(expr_node)) => match timed!(vm.evaluate_expr(expr_node)) {
                 Ok(val) => {
-                    println!("{:?}", val);
+                    println!("{}", val);
                 }
                 Err(e) => {
                     println!("Error evaluating expression: {:?}", e);

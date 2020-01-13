@@ -17,14 +17,16 @@ impl Namespace {
         }
     }
 
+    /// AKA push a new scope
     pub fn start_call(&mut self) {
         self.call_stack.push(Lookup::new());
     }
 
-    pub fn end_call(&mut self) {
+    /// AKA pop a scope; returns the blob of saved values, in case you need it
+    pub fn end_call(&mut self) -> Lookup {
         self.call_stack
             .pop()
-            .expect("Should have something on the stack to pop off");
+            .expect("Should have something on the stack to pop off")
     }
 
     pub fn define_variable(&mut self, name: String, val: LongleafValue) -> Option<LongleafValue> {
