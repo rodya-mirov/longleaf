@@ -14,7 +14,7 @@ mod namespace;
 use namespace::Namespace;
 
 mod values;
-use values::{EvalValue, FloatListValue, PrimitiveValue};
+use values::LongleafValue;
 
 const PAR_CHUNK_LEN: usize = 128; // TODO: find the right chunk length
 
@@ -50,7 +50,7 @@ impl VM {
 
     fn define_variable<T>(&mut self, name: &str, value: T) -> VmResult<()>
     where
-        T: Into<PrimitiveValue>,
+        T: Into<LongleafValue>,
     {
         if RESERVED_WORDS.contains(name) {
             return Err(EvalError::RedefineReservedWord(format!(
@@ -74,15 +74,17 @@ impl VM {
         }
     }
 
-    pub fn evaluate_expr(&mut self, expr: ExprNode) -> VmResult<EvalValue> {
-        let out: EvalValue = match expr {
-            ExprNode::Float(f) => EvalValue::Float(f),
+    pub fn evaluate_expr(&mut self, expr: ExprNode) -> VmResult<LongleafValue> {
+        let out: LongleafValue = match expr {
+            ExprNode::Float(f) => LongleafValue::Float(f),
             // TODO: This double-indirection is embarassing
-            ExprNode::FloatList(vals) => EvalValue::FloatList(Box::new(Box::new(vals))),
+            ExprNode::FloatList(vals) => {
+                LongleafValue::FloatList(Rc::new(self.arena.track_vector(vals)))
+            }
             ExprNode::FunctionCall(name, args) => self.eval_function_call(name, args)?,
             ExprNode::UnaryExpr(op, val) => self.eval_unary_expr(op, *val)?,
             ExprNode::BinaryExpr(op, a, b) => self.eval_binary_expr(op, *a, *b)?,
-            ExprNode::FunctionDefn(args, expr) => EvalValue::FunctionDefinition(
+            ExprNode::FunctionDefn(args, expr) => LongleafValue::FunctionDefinition(
                 Rc::new(values::Args { names: args.0 }),
                 Rc::new(*expr),
             ),
@@ -95,14 +97,14 @@ impl VM {
                             id
                         )));
                     }
-                    Some(val) => val.to_eval_value(),
+                    Some(val) => val.clone(),
                 }
             }
         };
         Ok(out)
     }
 
-    fn eval_function_call(&mut self, name: String, args: Vec<ExprNode>) -> VmResult<EvalValue> {
+    fn eval_function_call(&mut self, name: String, args: Vec<ExprNode>) -> VmResult<LongleafValue> {
         let name_str: &str = &name;
 
         let num_args: usize = match name_str {
@@ -114,14 +116,14 @@ impl VM {
                 None => {
                     return Err(EvalError::UnknownVariable(other.to_string()));
                 }
-                Some(PrimitiveValue::FunctionDefinition(fn_args, _expr)) => fn_args.names.len(),
-                Some(PrimitiveValue::Float(_)) => {
+                Some(LongleafValue::FunctionDefinition(fn_args, _expr)) => fn_args.names.len(),
+                Some(LongleafValue::Float(_)) => {
                     return Err(EvalError::TypeMismatch(format!(
                         "Name {} is associated to a float, but needed a function",
                         name_str
                     )));
                 }
-                Some(PrimitiveValue::FloatList(_)) => {
+                Some(LongleafValue::FloatList(_)) => {
                     return Err(EvalError::TypeMismatch(format!(
                         "Name {} is associated to a float list, but needed a function",
                         name_str
@@ -157,7 +159,7 @@ impl VM {
             }
             other => {
                 let (fn_args, fn_expr) = match self.variable_definitions.lookup_variable(other) {
-                    Some(PrimitiveValue::FunctionDefinition(fn_args, fn_expr)) => {
+                    Some(LongleafValue::FunctionDefinition(fn_args, fn_expr)) => {
                         (fn_args.clone(), fn_expr.clone())
                     }
                     _ => unreachable!(),
@@ -167,7 +169,7 @@ impl VM {
 
                 for (arg_name, arg_val) in fn_args.names.iter().zip(results.into_iter()) {
                     self.variable_definitions
-                        .define_variable(arg_name.to_string(), arg_val.into());
+                        .define_variable(arg_name.to_string(), arg_val);
                 }
 
                 // TODO: make this easier to clone?
@@ -180,10 +182,10 @@ impl VM {
         }
     }
 
-    fn eval_unary_expr(&mut self, op: UnaryOp, expr: ExprNode) -> VmResult<EvalValue> {
+    fn eval_unary_expr(&mut self, op: UnaryOp, expr: ExprNode) -> VmResult<LongleafValue> {
         use UnaryOp::*;
 
-        let inner: EvalValue = self.evaluate_expr(expr)?;
+        let inner: LongleafValue = self.evaluate_expr(expr)?;
 
         match op {
             Negate => unary_switcher!(-, inner, &self.arena),
@@ -191,11 +193,16 @@ impl VM {
     }
 
     #[allow(clippy::cognitive_complexity)] // False positive from macro expansions
-    fn eval_binary_expr(&mut self, op: BinaryOp, a: ExprNode, b: ExprNode) -> VmResult<EvalValue> {
+    fn eval_binary_expr(
+        &mut self,
+        op: BinaryOp,
+        a: ExprNode,
+        b: ExprNode,
+    ) -> VmResult<LongleafValue> {
         use BinaryOp::*;
 
-        let a: EvalValue = self.evaluate_expr(a)?;
-        let b: EvalValue = self.evaluate_expr(b)?;
+        let a: LongleafValue = self.evaluate_expr(a)?;
+        let b: LongleafValue = self.evaluate_expr(b)?;
 
         match op {
             Plus => binary_switcher!(+, a, b, &self.arena),
@@ -206,14 +213,14 @@ impl VM {
     }
 }
 
-impl fmt::Display for PrimitiveValue {
+impl fmt::Display for LongleafValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
-            PrimitiveValue::Float(val) => write!(f, "{}", val),
-            PrimitiveValue::FunctionDefinition(args, _expr) => {
+            LongleafValue::Float(val) => write!(f, "{}", val),
+            LongleafValue::FunctionDefinition(args, _expr) => {
                 write!(f, "Function of {} arguments", args.names.len())
             }
-            PrimitiveValue::FloatList(vals) => {
+            LongleafValue::FloatList(vals) => {
                 write!(f, "[")?;
                 if vals.is_empty() {
                     write!(f, "]")?;
@@ -232,11 +239,11 @@ impl fmt::Display for PrimitiveValue {
 }
 
 fn make_range(
-    start: EvalValue,
-    end: EvalValue,
-    step: EvalValue,
+    start: LongleafValue,
+    end: LongleafValue,
+    step: LongleafValue,
     arena: &VectorStore,
-) -> VmResult<EvalValue> {
+) -> VmResult<LongleafValue> {
     let start = get_float_helper(start, "0 (start)")?;
     let end = get_float_helper(end, "1 (end)")?;
     let step = get_float_helper(step, "2 (step)")?;
@@ -271,14 +278,14 @@ fn make_range(
     Ok(out.into())
 }
 
-fn get_float_helper(f: EvalValue, arg_name: &str) -> VmResult<f64> {
+fn get_float_helper(f: LongleafValue, arg_name: &str) -> VmResult<f64> {
     match f {
-        EvalValue::Float(f) => Ok(f),
-        EvalValue::FloatList(_) => Err(EvalError::TypeMismatch(format!(
+        LongleafValue::Float(f) => Ok(f),
+        LongleafValue::FloatList(_) => Err(EvalError::TypeMismatch(format!(
             "Argument '{}' needed to be a float, but got a float list",
             arg_name
         ))),
-        EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+        LongleafValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
             "Argument '{}' needed to be a float, but got a function",
             arg_name
         ))),
