@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::fmt;
 use std::rc::Rc;
 
 use crate::parser::{BinaryOp, ExprNode, StatementNode, UnaryOp};
@@ -12,7 +11,7 @@ use crate::vector_store::VectorStore;
 mod namespace;
 use namespace::Namespace;
 
-use crate::values::{self, LongleafValue};
+use crate::values::{Args, LongleafValue};
 
 const PAR_CHUNK_LEN: usize = 128; // TODO: find the right chunk length
 
@@ -64,10 +63,9 @@ impl VM {
             ExprNode::FunctionCall(name, args) => self.eval_function_call(name, args)?,
             ExprNode::UnaryExpr(op, val) => self.eval_unary_expr(op, *val)?,
             ExprNode::BinaryExpr(op, a, b) => self.eval_binary_expr(op, *a, *b)?,
-            ExprNode::FunctionDefn(args, expr) => LongleafValue::FunctionDefinition(
-                Rc::new(values::Args { names: args.0 }),
-                Rc::new(*expr),
-            ),
+            ExprNode::FunctionDefn(args, expr) => {
+                LongleafValue::FunctionDefinition(Rc::new(Args { names: args.0 }), Rc::new(*expr))
+            }
             ExprNode::VariableRef(id) => {
                 let stored = self.variable_definitions.lookup_variable(&id);
                 match stored {
@@ -206,49 +204,6 @@ impl VM {
             Minus => binary_switcher!(-, a, b, &self.arena),
             Times => binary_switcher!(*, a, b, &self.arena),
             Divide => binary_switcher!(/, a, b, &self.arena),
-        }
-    }
-}
-
-impl fmt::Display for LongleafValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match self {
-            LongleafValue::Float(val) => write!(f, "{}", val),
-            LongleafValue::FunctionDefinition(args, _expr) => {
-                let len = args.names.len();
-                let plural = if len > 1 { "s" } else { "" };
-                write!(f, "(function which takes {} argument{})", len, plural)
-            }
-            LongleafValue::FloatList(vals) => {
-                write!(f, "[")?;
-                if vals.is_empty() {
-                    write!(f, "]")?;
-                    return Ok(());
-                }
-
-                if vals.len() < 10 {
-                    let mut iter = vals.iter();
-                    write!(f, "{}", iter.next().unwrap())?;
-
-                    for next in iter {
-                        write!(f, ", {}", next)?;
-                    }
-                } else {
-                    write!(f, "{}", vals[0])?;
-
-                    for v in &vals[1..5] {
-                        write!(f, ", {}", v)?;
-                    }
-
-                    write!(f, ", ...")?;
-
-                    for v in &vals[vals.len()-5..] {
-                        write!(f, ", {}", v)?;
-                    }
-                }
-
-                write!(f, "]")
-            }
         }
     }
 }
