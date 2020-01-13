@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use crate::parser::{BinaryOp, ExprNode, StatementNode, UnaryOp};
+use crate::parser::{BinaryOp, BlockStmt, ExprNode, StatementNode, UnaryOp};
 
 #[macro_use]
 mod eval_macros;
@@ -30,6 +30,12 @@ pub enum EvalError {
     WrongNumArgs(String),
     TypeMismatch(String),
     IllegalArgument(String),
+    NoReturn(String),
+}
+
+pub enum StatementOutput {
+    NoOutput,
+    Returned(LongleafValue),
 }
 
 pub struct VM {
@@ -45,13 +51,34 @@ impl VM {
         }
     }
 
-    pub fn evaluate_statement(&mut self, stmt: StatementNode) -> VmResult<()> {
+    pub fn evaluate_statement(&mut self, stmt: StatementNode) -> VmResult<StatementOutput> {
         match stmt {
             StatementNode::VarDefn(name, expr) => {
                 let val = self.evaluate_expr(expr)?;
-                self.define_variable(&name, val)
+                self.define_variable(&name, val)?;
+                Ok(StatementOutput::NoOutput)
+            }
+            StatementNode::ReturnStmt(expr) => {
+                let val = self.evaluate_expr(expr)?;
+                Ok(StatementOutput::Returned(val))
+            }
+            StatementNode::BlockStmt(block) => self.evaluate_block_stmt(block),
+        }
+    }
+
+    fn evaluate_block_stmt(&mut self, block: BlockStmt) -> VmResult<StatementOutput> {
+        for stmt in block.stmts {
+            match self.evaluate_statement(stmt.clone())? {
+                StatementOutput::NoOutput => {}
+                StatementOutput::Returned(val) => {
+                    self.variable_definitions.end_call();
+                    return Ok(StatementOutput::Returned(val));
+                }
             }
         }
+
+        self.variable_definitions.end_call();
+        Ok(StatementOutput::NoOutput)
     }
 
     pub fn evaluate_expr(&mut self, expr: ExprNode) -> VmResult<LongleafValue> {
@@ -63,8 +90,8 @@ impl VM {
             ExprNode::FunctionCall(name, args) => self.eval_function_call(name, args)?,
             ExprNode::UnaryExpr(op, val) => self.eval_unary_expr(op, *val)?,
             ExprNode::BinaryExpr(op, a, b) => self.eval_binary_expr(op, *a, *b)?,
-            ExprNode::FunctionDefn(args, expr) => {
-                LongleafValue::FunctionDefinition(Rc::new(Args { names: args.0 }), Rc::new(*expr))
+            ExprNode::FunctionDefn(args, body) => {
+                LongleafValue::FunctionDefinition(Rc::new(Args { names: args.0 }), Rc::new(body))
             }
             ExprNode::VariableRef(id) => {
                 let stored = self.variable_definitions.lookup_variable(&id);
@@ -153,28 +180,46 @@ impl VM {
                 make_range(start, end, step, &self.arena)
             }
             other => {
-                let (fn_args, fn_expr) = match self.variable_definitions.lookup_variable(other) {
-                    Some(LongleafValue::FunctionDefinition(fn_args, fn_expr)) => {
-                        (fn_args.clone(), fn_expr.clone())
+                let (fn_args, fn_body) = match self.variable_definitions.lookup_variable(other) {
+                    Some(LongleafValue::FunctionDefinition(fn_args, fn_body)) => {
+                        (fn_args.clone(), fn_body.clone())
                     }
                     _ => unreachable!(),
                 };
 
-                self.variable_definitions.start_call();
-
-                for (arg_name, arg_val) in fn_args.names.iter().zip(results.into_iter()) {
-                    self.variable_definitions
-                        .define_variable(arg_name.to_string(), arg_val);
-                }
-
-                // TODO: make this easier to clone?
-                let res = self.evaluate_expr(fn_expr.as_ref().clone());
-
-                self.variable_definitions.end_call();
-
-                res
+                self.eval_user_function_call(fn_args, fn_body, results)
             }
         }
+    }
+
+    fn eval_user_function_call(
+        &mut self,
+        fn_args: Rc<Args>,
+        body: Rc<Vec<StatementNode>>,
+        arg_vals: Vec<LongleafValue>,
+    ) -> VmResult<LongleafValue> {
+        self.variable_definitions.start_call();
+
+        for (arg_name, arg_val) in fn_args.names.iter().zip(arg_vals.into_iter()) {
+            self.variable_definitions
+                .define_variable(arg_name.to_string(), arg_val);
+        }
+
+        for stmt in body.iter() {
+            match self.evaluate_statement(stmt.clone())? {
+                StatementOutput::NoOutput => {}
+                StatementOutput::Returned(val) => {
+                    self.variable_definitions.end_call();
+                    return Ok(val);
+                }
+            }
+        }
+
+        self.variable_definitions.end_call();
+
+        Err(EvalError::NoReturn(
+            "Function had no return statement, nothing is returned.".to_string(),
+        ))
     }
 
     fn eval_unary_expr(&mut self, op: UnaryOp, expr: ExprNode) -> VmResult<LongleafValue> {

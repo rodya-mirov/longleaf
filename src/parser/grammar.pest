@@ -15,7 +15,13 @@ help = { "help" }
 
 statement = 
     { var_defn_stmt
+    | block_stmt
+    | return_stmt
     }
+
+block_stmt = { "{" ~ (statement)* ~ "}" }
+
+return_stmt = { "return" ~ expr ~ ";" }
 
 var_defn_stmt = { id ~ "=" ~ expr ~ ";" }
 
@@ -36,11 +42,15 @@ base_expr = { paren_expr | function_call | id | float | float_list | function_de
 
 function_definition =
     // we can have \x => x*12, or () => x*12, or (\x, \y, \z,) => x+y+z, or etc.
-    { escaped_id ~ "=>" ~ expr
-    | "(" ~ ")" ~ "=>" ~ expr
-    | "(" ~ escaped_id ~ ( "," ~ escaped_id )* ~ (",")? ~ ")" ~ "=>" ~ expr
+    { escaped_id ~ "=>" ~ function_body
+    | "(" ~ ")" ~ "=>" ~ function_body
+    | "(" ~ escaped_id ~ ( "," ~ escaped_id )* ~ (",")? ~ ")" ~ "=>" ~ function_body
     }
 
+function_body = 
+    { expr
+    | block_stmt
+    }
 
 escaped_id = @{ "\\" ~ id }
 

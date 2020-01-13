@@ -20,6 +20,13 @@ pub enum ReplInput {
 #[derive(PartialEq, Debug, Clone)]
 pub enum StatementNode {
     VarDefn(String, ExprNode),
+    ReturnStmt(ExprNode),
+    BlockStmt(BlockStmt),
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct BlockStmt {
+    pub stmts: Vec<StatementNode>,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -27,7 +34,7 @@ pub struct Args(pub Vec<String>);
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ExprNode {
-    FunctionDefn(Args, Box<ExprNode>),
+    FunctionDefn(Args, Vec<StatementNode>),
     VariableRef(String),
     Float(f64),
     FloatList(Vec<f64>),
@@ -107,11 +114,30 @@ fn compile_statement_node(parsed: Pair<'_, Rule>) -> StatementNode {
 
             StatementNode::VarDefn(id, expr)
         }
+        Rule::block_stmt => StatementNode::BlockStmt(compile_block_stmt(statement_node)),
+        Rule::return_stmt => {
+            let inner_expr = only_child(statement_node);
+            let expr = compile_expr_node(inner_expr);
+
+            StatementNode::ReturnStmt(expr)
+        }
         other => panic!(
             "Unexpected rule match {:?} when parsing REPL input line",
             other
         ),
     }
+}
+
+fn compile_block_stmt(pair: Pair<'_, Rule>) -> BlockStmt {
+    assert_eq!(pair.as_rule(), Rule::block_stmt);
+
+    let mut out: Vec<StatementNode> = Vec::new();
+
+    for child in pair.into_inner() {
+        out.push(compile_statement_node(child));
+    }
+
+    BlockStmt { stmts: out }
 }
 
 fn compile_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
@@ -218,20 +244,35 @@ fn compile_function_defn_expr(pair: Pair<'_, Rule>) -> ExprNode {
     assert_eq!(pair.as_rule(), Rule::function_definition);
 
     let mut args: Vec<String> = Vec::new();
-    let mut eval_expr: Option<ExprNode> = None;
+    let mut body: Option<Vec<StatementNode>> = None;
 
     for child in pair.into_inner() {
         match child.as_rule() {
             Rule::escaped_id => {
-                assert!(eval_expr.is_none());
+                assert!(body.is_none());
 
                 let id = compile_escaped_id(child);
                 args.push(id);
             }
-            Rule::expr => {
-                assert!(eval_expr.is_none());
+            Rule::function_body => {
+                let body_node = only_child(child);
+                match body_node.as_rule() {
+                    Rule::expr => {
+                        assert!(body.is_none());
 
-                eval_expr = Some(compile_expr_node(child));
+                        let expr_body = compile_expr_node(body_node);
+                        body = Some(vec![StatementNode::ReturnStmt(expr_body)]);
+                    }
+                    Rule::block_stmt => {
+                        assert!(body.is_none());
+
+                        let block_body: BlockStmt = compile_block_stmt(body_node);
+                        body = Some(block_body.stmts);
+                    }
+                    other => {
+                        panic!("Received rule {:?} when parsing function definition", other);
+                    }
+                }
             }
             other => {
                 panic!("Received rule {:?} when parsing function definition", other);
@@ -239,10 +280,10 @@ fn compile_function_defn_expr(pair: Pair<'_, Rule>) -> ExprNode {
         }
     }
 
-    assert!(eval_expr.is_some());
+    assert!(body.is_some());
 
     let args = Args(args);
-    ExprNode::FunctionDefn(args, Box::new(eval_expr.unwrap()))
+    ExprNode::FunctionDefn(args, body.unwrap())
 }
 
 fn compile_escaped_id(pair: Pair<'_, Rule>) -> String {
