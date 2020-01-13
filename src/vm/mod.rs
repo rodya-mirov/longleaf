@@ -82,9 +82,9 @@ impl VM {
             ExprNode::FunctionCall(name, args) => self.eval_function_call(name, args)?,
             ExprNode::UnaryExpr(op, val) => self.eval_unary_expr(op, *val)?,
             ExprNode::BinaryExpr(op, a, b) => self.eval_binary_expr(op, *a, *b)?,
-            ExprNode::FunctionDefn(args, expr) => EvalValue::FunctionDefinition(
+            ExprNode::FunctionDefn(args, body) => EvalValue::FunctionDefinition(
                 Rc::new(values::Args { names: args.0 }),
-                Rc::new(*expr),
+                Rc::new(body),
             ),
             ExprNode::VariableRef(id) => {
                 let stored = self.variable_definitions.lookup_variable(&id);

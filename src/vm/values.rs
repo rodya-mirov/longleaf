@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use std::rc::Rc;
 
-use crate::parser::ExprNode;
+use crate::parser::StatementNode;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Args {
@@ -13,7 +13,7 @@ pub struct Args {
 pub enum EvalValue {
     Float(f64),
     FloatList(Box<dyn FloatListValue>),
-    FunctionDefinition(Rc<Args>, Rc<ExprNode>),
+    FunctionDefinition(Rc<Args>, Rc<Vec<StatementNode>>),
 }
 
 impl PartialEq for EvalValue {
@@ -101,7 +101,7 @@ impl FloatListValue for Rc<Vec<f64>> {
 pub enum PrimitiveValue {
     Float(f64),
     FloatList(Rc<Vec<f64>>),
-    FunctionDefinition(Rc<Args>, Rc<ExprNode>),
+    FunctionDefinition(Rc<Args>, Rc<Vec<StatementNode>>),
 }
 
 impl PrimitiveValue {
