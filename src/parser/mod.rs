@@ -34,6 +34,10 @@ pub struct Args(pub Vec<String>);
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ExprNode {
+    // Note this isn't Args and BlockStmt, because Block handles its own namespacing and flow control,
+    // while function evaluation needs to be more particular. So it's better to think that both functions
+    // and blocks "contain a list of statements" instead of thinking "functions contain a block", even
+    // though the grammar says functions contain a block. This is just for parsing convenience.
     FunctionDefn(Args, Vec<StatementNode>),
     VariableRef(String),
     Float(f64),
