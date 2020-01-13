@@ -2,19 +2,17 @@ use std::collections::HashSet;
 use std::fmt;
 use std::rc::Rc;
 
-use crate::parser::*;
+use crate::parser::{BinaryOp, ExprNode, StatementNode, UnaryOp};
 
 #[macro_use]
 mod macros;
 
-mod store;
-use store::VectorStore;
+use crate::vector_store::VectorStore;
 
 mod namespace;
 use namespace::Namespace;
 
-mod values;
-use values::LongleafValue;
+use crate::values::{self, LongleafValue};
 
 const PAR_CHUNK_LEN: usize = 128; // TODO: find the right chunk length
 
@@ -77,7 +75,6 @@ impl VM {
     pub fn evaluate_expr(&mut self, expr: ExprNode) -> VmResult<LongleafValue> {
         let out: LongleafValue = match expr {
             ExprNode::Float(f) => LongleafValue::Float(f),
-            // TODO: This double-indirection is embarassing
             ExprNode::FloatList(vals) => {
                 LongleafValue::FloatList(Rc::new(self.arena.track_vector(vals)))
             }

@@ -17,7 +17,7 @@ macro_rules! unary_fn_switcher {
 
 macro_rules! unary_fn_vector {
     ($func:expr, $a:expr, $store:expr) => {{
-        let a: &[f64] = &**$a; // TODO: for real?
+        let a: &[f64] = &*$a;
 
         let func = $func;
 
@@ -61,7 +61,7 @@ macro_rules! unary_switcher {
 macro_rules! unary_op_vector {
     ($op:tt, $a:expr, $store:expr) => {
         {
-            let a: &[f64] = &**$a; // TODO: for real?
+            let a: &[f64] = &*$a;
 
             let mut out = ($store).get_vector(a.len());
             assert_eq!(out.len(), a.len());
@@ -112,7 +112,7 @@ macro_rules! scalar_vector {
     ($op:tt, $a:expr, $b:expr, $store:expr) => {
         {
             let a: f64 = $a;
-            let b: &Vec<f64> = &**$b; // TODO: :rust-triggered:
+            let b: &[f64] = &*$b;
 
             let mut out = ($store).get_vector(b.len());
             assert_eq!(out.len(), b.len());
@@ -133,7 +133,7 @@ macro_rules! scalar_vector {
 macro_rules! vector_scalar {
     ($op:tt, $a:expr, $b:expr, $store:expr) => {
         {
-            let a: &Vec<f64> = &**$a; // TODO: ugh
+            let a: &[f64] = &*$a;
             let b: f64 = $b;
 
             let mut out = ($store).get_vector(a.len());
@@ -156,8 +156,8 @@ macro_rules! vector_scalar {
 macro_rules! vector_vector {
     ($op:tt, $a:expr, $b:expr, $store:expr) => {
         {
-            let a: &Vec<f64> = &**$a; // TODO: ugh
-            let b: &Vec<f64> = &**$b; // TODO: :rust-triggered:
+            let a: &[f64] = &*$a;
+            let b: &[f64] = &*$b;
 
             if a.len() != b.len() {
                 return Err(EvalError::DimensionMismatch(format!("Vector arguments must have same length; got {} and {}", a.len(), b.len())));

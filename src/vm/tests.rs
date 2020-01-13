@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::parser::parse_repl_input;
+use crate::parser::{parse_repl_input, ReplInput};
 
 fn run_repl_inputs(input: &[&str], expected: Vec<LongleafValue>) {
     let mut vm = VM::new();

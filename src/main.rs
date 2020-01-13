@@ -7,6 +7,8 @@ extern crate lazy_static;
 use std::io::{self, prelude::*};
 
 mod parser;
+mod values;
+mod vector_store;
 mod vm;
 
 #[macro_use]
