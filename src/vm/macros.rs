@@ -1,12 +1,14 @@
 macro_rules! unary_fn_switcher {
     ($func:expr, $a:expr, $store:expr) => {{
-        let a: EvalValue = $a;
+        let a: LongleafValue = $a;
         let func = $func;
 
         match a {
-            EvalValue::Float(a) => Ok(EvalValue::Float(func(a))),
-            EvalValue::FloatList(a) => Ok(EvalValue::FloatList(unary_fn_vector!(func, a, $store))),
-            EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+            LongleafValue::Float(a) => Ok(LongleafValue::Float(func(a))),
+            LongleafValue::FloatList(a) => {
+                Ok(LongleafValue::FloatList(unary_fn_vector!(func, a, $store)))
+            }
+            LongleafValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
                 "Expected a float or vector; got a function"
             ))),
         }
@@ -15,12 +17,13 @@ macro_rules! unary_fn_switcher {
 
 macro_rules! unary_fn_vector {
     ($func:expr, $a:expr, $store:expr) => {{
-        let a: Box<dyn FloatListValue> = $a;
-        let a: &[f64] = &**a; // TODO: for real?
+        let a: &[f64] = &**$a; // TODO: for real?
 
         let func = $func;
 
-        let mut out = ($store).get_vector(a.len());
+        let store = $store;
+
+        let mut out = store.get_vector(a.len());
         assert_eq!(out.len(), a.len());
 
         let out_slice: &mut [f64] = &mut out;
@@ -35,19 +38,19 @@ macro_rules! unary_fn_vector {
                 *o = func(i);
             });
 
-        Box::new(out)
+        out.into()
     }};
 }
 
 macro_rules! unary_switcher {
     ($op:tt, $a:expr, $store:expr) => {
         {
-            let a: EvalValue = $a;
+            let a: LongleafValue = $a;
 
             match a {
-                EvalValue::Float(a) => Ok(EvalValue::Float($op a)),
-                EvalValue::FloatList(a) => Ok(EvalValue::FloatList(unary_op_vector!($op, a, $store))),
-                EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+                LongleafValue::Float(a) => Ok(LongleafValue::Float($op a)),
+                LongleafValue::FloatList(a) => Ok(LongleafValue::FloatList(unary_op_vector!($op, a, $store))),
+                LongleafValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
                     "Expected a float or vector; got a function"
                 ))),
             }
@@ -58,8 +61,7 @@ macro_rules! unary_switcher {
 macro_rules! unary_op_vector {
     ($op:tt, $a:expr, $store:expr) => {
         {
-            let a: Box<dyn FloatListValue> = $a;
-            let a: &[f64] = &**a; // TODO: for real?
+            let a: &[f64] = &**$a; // TODO: for real?
 
             let mut out = ($store).get_vector(a.len());
             assert_eq!(out.len(), a.len());
@@ -72,7 +74,7 @@ macro_rules! unary_op_vector {
                     *o = $op i;
                 });
 
-            Box::new(out)
+            out.into()
         }
     };
 }
@@ -80,25 +82,25 @@ macro_rules! unary_op_vector {
 macro_rules! binary_switcher {
     ($op:tt, $a:expr, $b:expr, $store:expr) => {
         {
-            let a: EvalValue = $a;
-            let b: EvalValue = $b;
+            let a: LongleafValue = $a;
+            let b: LongleafValue = $b;
 
             match a {
-                EvalValue::Float(a) => match b {
-                    EvalValue::Float(b) => Ok(EvalValue::Float(a $op b)),
-                    EvalValue::FloatList(b) => Ok(EvalValue::FloatList(scalar_vector!($op, a, b, $store))),
-                    EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+                LongleafValue::Float(a) => match b {
+                    LongleafValue::Float(b) => Ok(LongleafValue::Float(a $op b)),
+                    LongleafValue::FloatList(b) => Ok(LongleafValue::FloatList(scalar_vector!($op, a, b, $store))),
+                    LongleafValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
                         "Expected a float or vector; got a function"
                     ))),
                 },
-                EvalValue::FloatList(a) => match b {
-                    EvalValue::Float(b) => Ok(EvalValue::FloatList(vector_scalar!($op, a, b, $store))),
-                    EvalValue::FloatList(b) => Ok(EvalValue::FloatList(vector_vector!($op, a, b, $store))),
-                    EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+                LongleafValue::FloatList(a) => match b {
+                    LongleafValue::Float(b) => Ok(LongleafValue::FloatList(vector_scalar!($op, a, b, $store))),
+                    LongleafValue::FloatList(b) => Ok(LongleafValue::FloatList(vector_vector!($op, a, b, $store))),
+                    LongleafValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
                         "Expected a float or vector; got a function"
                     ))),
                 },
-                EvalValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
+                LongleafValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
                     "Expected a float or vector; got a function"
                 ))),
             }
@@ -123,7 +125,7 @@ macro_rules! scalar_vector {
                     *o = a $op bi;
                 });
 
-            Box::new(out)
+            out.into()
         }
     };
 }
@@ -146,7 +148,7 @@ macro_rules! vector_scalar {
                     *o = ai $op b;
                 });
 
-            Box::new(out)
+            out.into()
         }
     };
 }
@@ -172,7 +174,7 @@ macro_rules! vector_vector {
                     *o = ai $op bi;
                 });
 
-            Box::new(out)
+            out.into()
         }
     };
 }

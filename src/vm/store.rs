@@ -10,8 +10,6 @@ use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::rc::{Rc, Weak};
 
-use super::{EvalValue, FloatListValue};
-
 pub struct VectorStore {
     internal_store: Rc<VectorInternalStore>,
 }
@@ -26,6 +24,13 @@ impl VectorStore {
             internal_store: Rc::new(VectorInternalStore {
                 stored_vectors: RefCell::new(HashMap::new()),
             }),
+        }
+    }
+
+    pub fn track_vector(&self, data: Vec<f64>) -> TrackedVector {
+        TrackedVector {
+            data,
+            home_store: Rc::downgrade(&self.internal_store),
         }
     }
 
@@ -70,17 +75,9 @@ pub struct TrackedVector {
     home_store: Weak<VectorInternalStore>,
 }
 
-impl Into<EvalValue> for TrackedVector {
-    fn into(self) -> EvalValue {
-        EvalValue::FloatList(Box::new(self))
-    }
-}
-
-impl FloatListValue for TrackedVector {
-    fn to_float_list(self: Box<Self>) -> Rc<Vec<f64>> {
-        let mut actual: TrackedVector = *self;
-        let data = std::mem::replace(&mut actual.data, Vec::new());
-        Rc::new(data)
+impl PartialEq for TrackedVector {
+    fn eq(&self, other: &TrackedVector) -> bool {
+        self.data == other.data
     }
 }
 
