@@ -23,7 +23,7 @@ macro_rules! unary_fn_vector {
 
         let store = $store;
 
-        let mut out = store.get_vector(a.len());
+        let mut out: TrackedVector = store.get_vector(a.len())?;
         assert_eq!(out.len(), a.len());
 
         let out_slice: &mut [f64] = &mut out;
@@ -63,7 +63,7 @@ macro_rules! unary_op_vector {
         {
             let a: &[f64] = &*$a;
 
-            let mut out = ($store).get_vector(a.len());
+            let mut out: TrackedVector = ($store).get_vector(a.len())?;
             assert_eq!(out.len(), a.len());
 
             let out_slice: &mut [f64] = &mut out;
@@ -114,7 +114,7 @@ macro_rules! scalar_vector {
             let a: f64 = $a;
             let b: &[f64] = &*$b;
 
-            let mut out = ($store).get_vector(b.len());
+            let mut out = ($store).get_vector(b.len())?;
             assert_eq!(out.len(), b.len());
 
             let out_slice: &mut [f64] = &mut out;
@@ -136,7 +136,7 @@ macro_rules! vector_scalar {
             let a: &[f64] = &*$a;
             let b: f64 = $b;
 
-            let mut out = ($store).get_vector(a.len());
+            let mut out = ($store).get_vector(a.len())?;
             assert_eq!(out.len(), a.len());
 
             let out_slice: &mut [f64] = &mut out;
@@ -163,7 +163,7 @@ macro_rules! vector_vector {
                 return Err(EvalError::DimensionMismatch(format!("Vector arguments must have same length; got {} and {}", a.len(), b.len())));
             }
 
-            let mut out = ($store).get_vector(a.len());
+            let mut out = ($store).get_vector(a.len())?;
             assert_eq!(out.len(), a.len());
 
             let out_slice: &mut [f64] = &mut out;
