@@ -5,6 +5,8 @@ repl_input_line = { SOI ~ repl_input ~ EOI }
 repl_input = 
     { quit
     | help
+    | mem
+    | gc
     | statement
     | expr
     }
@@ -12,6 +14,10 @@ repl_input =
 quit = { "quit" | "exit" }
 
 help = { "help" }
+
+mem = { "mem" | "memory" }
+
+gc = { "gc" }
 
 statement = 
     { var_defn_stmt

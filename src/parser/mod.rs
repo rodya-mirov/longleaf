@@ -15,6 +15,8 @@ pub enum ReplInput {
     Statement(StatementNode),
     Exit,
     Help,
+    MemoryUsage,
+    GarbageCollect,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -81,6 +83,8 @@ pub fn parse_repl_input(input: &str) -> ParseResult<ReplInput> {
         Rule::statement => Ok(ReplInput::Statement(compile_statement_node(actual_input))),
         Rule::quit => Ok(ReplInput::Exit),
         Rule::help => Ok(ReplInput::Help),
+        Rule::mem => Ok(ReplInput::MemoryUsage),
+        Rule::gc => Ok(ReplInput::GarbageCollect),
         other => panic!(
             "Unexpected rule match {:?} when parsing REPL input line",
             other

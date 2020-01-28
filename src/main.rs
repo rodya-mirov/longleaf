@@ -42,6 +42,15 @@ fn main() {
             Ok(ReplInput::Help) => {
                 print_help();
             }
+            Ok(ReplInput::MemoryUsage) => {
+                let usage = vm.get_memory_usage();
+                println!("{}", usage);
+            }
+            Ok(ReplInput::GarbageCollect) => {
+                vm.garbage_collect();
+                let usage = vm.get_memory_usage();
+                println!("{}", usage);
+            }
             Ok(ReplInput::Exit) => {
                 print_quit_dialogue();
                 break 'main_loop;

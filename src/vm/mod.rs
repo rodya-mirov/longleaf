@@ -6,7 +6,7 @@ use crate::parser::{BinaryOp, BlockStmt, ExprNode, StatementNode, UnaryOp};
 #[macro_use]
 mod eval_macros;
 
-use crate::vector_store::VectorStore;
+use crate::vector_store::{AllocationError, MemoryUsageReport, TrackedVector, VectorStore};
 
 mod namespace;
 use namespace::Namespace;
@@ -31,6 +31,16 @@ pub enum EvalError {
     TypeMismatch(String),
     IllegalArgument(String),
     NoReturn(String),
+    OutOfMemory(String),
+}
+
+impl From<AllocationError> for EvalError {
+    fn from(e: AllocationError) -> EvalError {
+        EvalError::OutOfMemory(format!(
+            "Insufficient available memory to allocate vector of size {}",
+            e.length
+        ))
+    }
 }
 
 pub enum StatementOutput {
@@ -49,6 +59,14 @@ impl VM {
             variable_definitions: Namespace::new(),
             arena: VectorStore::new(),
         }
+    }
+
+    pub fn get_memory_usage(&self) -> MemoryUsageReport {
+        self.arena.get_memory_usage()
+    }
+
+    pub fn garbage_collect(&self) {
+        self.arena.garbage_collect();
     }
 
     pub fn evaluate_statement(&mut self, stmt: StatementNode) -> VmResult<StatementOutput> {
@@ -273,17 +291,10 @@ fn make_range(
         ));
     }
 
-    let len = { ((end - start) / step).ceil() as usize };
-
-    if len > 100_000_000 {
-        return Err(EvalError::IllegalArgument(format!(
-            "Start/end/step=({}/{}/{}) yields a range of length {} which is not OK",
-            start, end, step, len
-        )));
-    }
+    let len: usize = { ((end - start) / step).ceil() as usize };
 
     let mut running = start;
-    let mut out = arena.get_vector(len);
+    let mut out = arena.get_vector(len)?;
 
     for i in 0..len {
         out[i] = running;
