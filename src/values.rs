@@ -18,6 +18,18 @@ pub enum LongleafValue {
     FunctionDefinition(Rc<Args>, Rc<Vec<StatementNode>>),
 }
 
+impl LongleafValue {
+    pub fn type_name(&self) -> &'static str {
+        use LongleafValue::*;
+
+        match self {
+            Float(_) => "float",
+            FloatList(_) => "float vector",
+            FunctionDefinition(_, _) => "function definition",
+        }
+    }
+}
+
 impl From<TrackedVector> for LongleafValue {
     fn from(tv: TrackedVector) -> LongleafValue {
         LongleafValue::FloatList(Rc::new(tv))

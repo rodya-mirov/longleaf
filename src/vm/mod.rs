@@ -1,15 +1,15 @@
 use std::collections::HashSet;
+use std::convert::TryInto;
 use std::rc::Rc;
 
 use crate::parser::{BinaryOp, BlockStmt, ExprNode, StatementNode, UnaryOp};
-
-#[macro_use]
-mod eval_macros;
-
 use crate::vector_store::{AllocationError, MemoryUsageReport, TrackedVector, VectorStore};
 
 mod namespace;
 use namespace::Namespace;
+
+mod builtins;
+use builtins::Operation;
 
 use crate::values::{Args, LongleafValue};
 
@@ -147,10 +147,27 @@ impl VM {
     fn eval_function_call(&mut self, name: String, args: Vec<ExprNode>) -> VmResult<LongleafValue> {
         let name_str: &str = &name;
 
+        if let Ok(op) = (&name as &str).try_into() {
+            let op: Box<dyn Operation> = op;
+            if args.len() != op.num_args() {
+                return Err(EvalError::WrongNumArgs(format!(
+                    "For function {}, expected {} args, but got {}",
+                    name_str,
+                    op.num_args(),
+                    args.len()
+                )));
+            }
+
+            let mut results = Vec::with_capacity(op.num_args());
+
+            for arg in args {
+                results.push(self.evaluate_expr(arg)?);
+            }
+
+            return op.process(results, &self.arena);
+        }
+
         let num_args: usize = match name_str {
-            "sin" => 1,
-            "cos" => 1,
-            "tan" => 1,
             "range" => 3,
             other => match self.variable_definitions.lookup_variable(other) {
                 None => {
@@ -188,9 +205,6 @@ impl VM {
         }
 
         match name_str {
-            "sin" => unary_fn_switcher!(<f64>::sin, results.pop().unwrap(), &self.arena),
-            "cos" => unary_fn_switcher!(<f64>::cos, results.pop().unwrap(), &self.arena),
-            "tan" => unary_fn_switcher!(<f64>::tan, results.pop().unwrap(), &self.arena),
             "range" => {
                 let step = results.pop().unwrap();
                 let end = results.pop().unwrap();
@@ -241,13 +255,13 @@ impl VM {
     }
 
     fn eval_unary_expr(&mut self, op: UnaryOp, expr: ExprNode) -> VmResult<LongleafValue> {
-        use UnaryOp::*;
-
         let inner: LongleafValue = self.evaluate_expr(expr)?;
 
-        match op {
-            Negate => unary_switcher!(-, inner, &self.arena),
-        }
+        let op: Box<dyn Operation> = op.into();
+        // TODO: this extra vec allocation is gross but fixing it
+        // is such a non-issue that I can't afford the extra LoC for it
+        // right now
+        op.process(vec![inner], &self.arena)
     }
 
     #[allow(clippy::cognitive_complexity)] // False positive from macro expansions
@@ -257,17 +271,11 @@ impl VM {
         a: ExprNode,
         b: ExprNode,
     ) -> VmResult<LongleafValue> {
-        use BinaryOp::*;
-
         let a: LongleafValue = self.evaluate_expr(a)?;
         let b: LongleafValue = self.evaluate_expr(b)?;
 
-        match op {
-            Plus => binary_switcher!(+, a, b, &self.arena),
-            Minus => binary_switcher!(-, a, b, &self.arena),
-            Times => binary_switcher!(*, a, b, &self.arena),
-            Divide => binary_switcher!(/, a, b, &self.arena),
-        }
+        let op: Box<dyn Operation> = op.into();
+        op.process(vec![a, b], &self.arena)
     }
 }
 
