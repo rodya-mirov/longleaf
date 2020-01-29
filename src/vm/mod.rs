@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use std::rc::Rc;
 
 use crate::parser::{BinaryOp, BlockStmt, ExprNode, StatementNode, UnaryOp};
-use crate::vector_store::{AllocationError, MemoryUsageReport, TrackedVector, VectorStore};
+use crate::vector_store::{AllocationError, MemoryUsageReport, VectorStore};
 
 mod namespace;
 use namespace::Namespace;
@@ -167,26 +167,23 @@ impl VM {
             return op.process(results, &self.arena);
         }
 
-        let num_args: usize = match name_str {
-            "range" => 3,
-            other => match self.variable_definitions.lookup_variable(other) {
-                None => {
-                    return Err(EvalError::UnknownVariable(other.to_string()));
-                }
-                Some(LongleafValue::FunctionDefinition(fn_args, _expr)) => fn_args.names.len(),
-                Some(LongleafValue::Float(_)) => {
-                    return Err(EvalError::TypeMismatch(format!(
-                        "Name {} is associated to a float, but needed a function",
-                        name_str
-                    )));
-                }
-                Some(LongleafValue::FloatList(_)) => {
-                    return Err(EvalError::TypeMismatch(format!(
-                        "Name {} is associated to a float list, but needed a function",
-                        name_str
-                    )));
-                }
-            },
+        let num_args: usize = match self.variable_definitions.lookup_variable(name_str) {
+            None => {
+                return Err(EvalError::UnknownVariable(name_str.to_string()));
+            }
+            Some(LongleafValue::FunctionDefinition(fn_args, _expr)) => fn_args.names.len(),
+            Some(LongleafValue::Float(_)) => {
+                return Err(EvalError::TypeMismatch(format!(
+                    "Name {} is associated to a float, but needed a function",
+                    name_str
+                )));
+            }
+            Some(LongleafValue::FloatList(_)) => {
+                return Err(EvalError::TypeMismatch(format!(
+                    "Name {} is associated to a float list, but needed a function",
+                    name_str
+                )));
+            }
         };
 
         if args.len() != num_args {
@@ -205,12 +202,6 @@ impl VM {
         }
 
         match name_str {
-            "range" => {
-                let step = results.pop().unwrap();
-                let end = results.pop().unwrap();
-                let start = results.pop().unwrap();
-                make_range(start, end, step, &self.arena)
-            }
             other => {
                 let (fn_args, fn_body) = match self.variable_definitions.lookup_variable(other) {
                     Some(LongleafValue::FunctionDefinition(fn_args, fn_body)) => {
@@ -276,53 +267,6 @@ impl VM {
 
         let op: Box<dyn Operation> = op.into();
         op.process(vec![a, b], &self.arena)
-    }
-}
-
-fn make_range(
-    start: LongleafValue,
-    end: LongleafValue,
-    step: LongleafValue,
-    arena: &VectorStore,
-) -> VmResult<LongleafValue> {
-    let start = get_float_helper(start, "0 (start)")?;
-    let end = get_float_helper(end, "1 (end)")?;
-    let step = get_float_helper(step, "2 (step)")?;
-
-    if start < end && step <= 0. {
-        return Err(EvalError::IllegalArgument(
-            "Since start<end, expected argument 2 (step) to be a positive number".to_string(),
-        ));
-    } else if start > end && step >= 0. {
-        return Err(EvalError::IllegalArgument(
-            "Since start>end, expected argument 2 (step) to be a negative number".to_string(),
-        ));
-    }
-
-    let len: usize = { ((end - start) / step).ceil() as usize };
-
-    let mut running = start;
-    let mut out = arena.get_vector(len)?;
-
-    for i in 0..len {
-        out[i] = running;
-        running += step;
-    }
-
-    Ok(out.into())
-}
-
-fn get_float_helper(f: LongleafValue, arg_name: &str) -> VmResult<f64> {
-    match f {
-        LongleafValue::Float(f) => Ok(f),
-        LongleafValue::FloatList(_) => Err(EvalError::TypeMismatch(format!(
-            "Argument '{}' needed to be a float, but got a float list",
-            arg_name
-        ))),
-        LongleafValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
-            "Argument '{}' needed to be a float, but got a function",
-            arg_name
-        ))),
     }
 }
 

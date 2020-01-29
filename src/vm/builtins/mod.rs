@@ -9,6 +9,8 @@ use super::{EvalError, LongleafValue, VectorStore, VmResult};
 #[macro_use]
 mod builtins_macros;
 
+mod range;
+
 pub trait Operation {
     fn num_args(&self) -> usize;
     fn name(&self) -> &'static str;
@@ -79,7 +81,29 @@ fn get_two_args(
         )));
     }
 
-    Ok((args.pop().unwrap(), args.pop().unwrap()))
+    let b = args.pop().unwrap();
+    let a = args.pop().unwrap();
+
+    Ok((a, b))
+}
+
+fn get_three_args(
+    name: &str,
+    mut args: Vec<LongleafValue>,
+) -> VmResult<(LongleafValue, LongleafValue, LongleafValue)> {
+    if args.len() != 3 {
+        return Err(EvalError::WrongNumArgs(format!(
+            "Function {} requires 3 arguments, but got {}",
+            name,
+            args.len()
+        )));
+    }
+
+    let c = args.pop().unwrap();
+    let b = args.pop().unwrap();
+    let a = args.pop().unwrap();
+
+    Ok((a, b, c))
 }
 
 type DynOp = Box<dyn Operation>;
@@ -93,6 +117,7 @@ impl<'a> TryFrom<&'a str> for DynOp {
             "sin" => Ok(Box::new(Sin)),
             "cos" => Ok(Box::new(Cos)),
             "tan" => Ok(Box::new(Tan)),
+            "range" => Ok(Box::new(range::Range)),
             _ => Err(()),
         }
     }

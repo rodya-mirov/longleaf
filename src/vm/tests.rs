@@ -96,30 +96,3 @@ fn block_func_tests() {
 
     // Closures don't work and nested calls don't work, there is an open issue for this
 }
-
-#[test]
-fn make_range_tests() {
-    fn do_range_test(start: f64, end: f64, step: f64, expected: Vec<f64>) {
-        let store = VectorStore::new();
-
-        let actual = make_range(start.into(), end.into(), step.into(), &store).unwrap();
-
-        let expected: LongleafValue = store.track_vector(expected).into();
-
-        assert_eq!(actual, expected);
-    }
-
-    do_range_test(1., 2., 1., vec![1.]);
-    do_range_test(1., 2., 0.5, vec![1., 1.5]);
-
-    do_range_test(1., 1., 1., vec![]);
-
-    do_range_test(2., 1., -1., vec![2.]);
-    do_range_test(2., 1., -0.5, vec![2., 1.5]);
-    do_range_test(
-        2.,
-        1.,
-        -0.3,
-        vec![2., 2. - 0.3, 2. - 0.3 - 0.3, 2. - 0.3 - 0.3 - 0.3],
-    );
-}
