@@ -93,8 +93,8 @@ struct VectorInternalStore {
     stored_vectors: HashMap<usize, Vec<Vec<f64>>>,
 }
 
-impl VectorStore {
-    pub fn new() -> Self {
+impl Default for VectorStore {
+    fn default() -> Self {
         VectorStore {
             internal_store: Rc::new(RefCell::new(VectorInternalStore {
                 stored_vectors: HashMap::new(),
@@ -104,7 +104,9 @@ impl VectorStore {
             })),
         }
     }
+}
 
+impl VectorStore {
     pub fn get_memory_usage(&self) -> MemoryUsageReport {
         self.internal_store.as_ref().borrow().get_memory_usage()
     }
@@ -270,7 +272,7 @@ mod tests {
 
     #[test]
     fn verify_repetition() {
-        let store = VectorStore::new();
+        let store = VectorStore::default();
 
         let mut a = store.get_vector(10).unwrap();
         let mut b = store.get_vector(10).unwrap();

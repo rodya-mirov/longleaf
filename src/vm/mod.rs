@@ -57,7 +57,7 @@ impl VM {
     pub fn new() -> Self {
         VM {
             variable_definitions: Namespace::new(),
-            arena: VectorStore::new(),
+            arena: VectorStore::default(),
         }
     }
 

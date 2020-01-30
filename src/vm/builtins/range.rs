@@ -73,7 +73,7 @@ mod tests {
     #[test]
     fn make_range_tests() {
         fn do_range_test(start: f64, end: f64, step: f64, expected: Vec<f64>) {
-            let store = VectorStore::new();
+            let store = VectorStore::default();
 
             let actual = make_range(start.into(), end.into(), step.into(), &store).unwrap();
 
