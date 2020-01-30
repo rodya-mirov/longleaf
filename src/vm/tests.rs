@@ -65,6 +65,14 @@ fn exp_tests() {
     );
 
     run_repl_inputs(
+        &["exp([0, 1, -12.05])"],
+        to_ll_values(vec![
+            // Only one value, which is three numbers
+            vec![1.0, (1.0 as f64).exp(), (-12.05 as f64).exp()],
+        ]),
+    );
+
+    run_repl_inputs(
         &["ln(0)", "ln(1)", "ln(12.05)"],
         vec![(0.0 as f64).ln(), 0.0, (12.05 as f64).ln()],
     );
