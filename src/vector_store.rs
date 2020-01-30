@@ -93,8 +93,8 @@ struct VectorInternalStore {
     stored_vectors: HashMap<usize, Vec<Vec<f64>>>,
 }
 
-impl VectorStore {
-    pub fn new() -> Self {
+impl Default for VectorStore {
+    fn default() -> Self {
         VectorStore {
             internal_store: Rc::new(RefCell::new(VectorInternalStore {
                 stored_vectors: HashMap::new(),
@@ -104,7 +104,9 @@ impl VectorStore {
             })),
         }
     }
+}
 
+impl VectorStore {
     pub fn get_memory_usage(&self) -> MemoryUsageReport {
         self.internal_store.as_ref().borrow().get_memory_usage()
     }
@@ -115,7 +117,7 @@ impl VectorStore {
 
     pub fn track_vector(&self, data: Vec<f64>) -> TrackedVector {
         self.internal_store.as_ref().borrow_mut().bytes_used +=
-            std::mem::size_of::<f64>() * data.len();
+            std::mem::size_of::<f64>() * data.capacity();
 
         TrackedVector {
             data,
@@ -155,18 +157,13 @@ impl VectorInternalStore {
     fn return_vector(&mut self, data: &mut TrackedVector) {
         let actual_data: Vec<f64> = std::mem::replace(&mut data.data, Vec::new());
 
-        // Leaving this in here because I'm not sure which we should actually use,
-        // but also currently no operations change the length of any TrackedVector,
-        // so it shouldn't come up.
-        assert_eq!(actual_data.len(), actual_data.capacity());
-
-        let length = actual_data.len();
-
-        let size = std::mem::size_of::<f64>() * length;
+        let size = std::mem::size_of::<f64>() * actual_data.capacity();
 
         assert!(self.bytes_used >= size);
         self.bytes_used -= size;
         self.bytes_reserved += size;
+
+        let length = actual_data.len();
 
         if length > 0 {
             // just push the data back onto the map to reuse
@@ -270,7 +267,7 @@ mod tests {
 
     #[test]
     fn verify_repetition() {
-        let store = VectorStore::new();
+        let store = VectorStore::default();
 
         let mut a = store.get_vector(10).unwrap();
         let mut b = store.get_vector(10).unwrap();
