@@ -1,5 +1,8 @@
 macro_rules! impl_float_unary {
     ($kind:ident, $name:expr, $func:expr) => {
+        #[derive(Eq, PartialEq, Copy, Clone, Debug)]
+        pub struct $kind;
+
         impl Operation for $kind {
             fn num_args(&self) -> usize {
                 1
@@ -68,6 +71,9 @@ macro_rules! unary_fn_vector {
 
 macro_rules! impl_float_binary {
     ($kind:ident, $name:expr, $func:expr) => {
+        #[derive(Eq, PartialEq, Copy, Clone, Debug)]
+        pub struct $kind;
+
         impl Operation for $kind {
             fn num_args(&self) -> usize {
                 2

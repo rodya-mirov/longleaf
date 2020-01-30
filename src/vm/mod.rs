@@ -17,7 +17,9 @@ const PAR_CHUNK_LEN: usize = 128; // TODO: find the right chunk length
 
 lazy_static! {
     static ref RESERVED_WORDS: HashSet<&'static str> =
-        vec!["sin", "cos", "tan", "range"].into_iter().collect();
+        vec!["sin", "cos", "tan", "exp", "ln", "range"]
+            .into_iter()
+            .collect();
 }
 
 pub type VmResult<T> = Result<T, EvalError>;

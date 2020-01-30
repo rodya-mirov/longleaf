@@ -17,44 +17,16 @@ pub trait Operation {
     fn process(&self, args: Vec<LongleafValue>, store: &VectorStore) -> VmResult<LongleafValue>;
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct Sin;
-
 impl_float_unary!(Sin, "sin", <f64>::sin);
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct Cos;
-
 impl_float_unary!(Cos, "cos", <f64>::cos);
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct Tan;
-
 impl_float_unary!(Tan, "tan", <f64>::tan);
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct Neg;
-
 impl_float_unary!(Neg, "-", <f64>::neg);
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct Plus;
+impl_float_unary!(Exp, "exp", <f64>::exp);
+impl_float_unary!(Ln, "ln", <f64>::ln);
 
 impl_float_binary!(Plus, "+", <f64>::add);
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct Minus;
-
 impl_float_binary!(Minus, "-", <f64>::sub);
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct Times;
-
 impl_float_binary!(Times, "*", <f64>::mul);
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct Divide;
-
 impl_float_binary!(Divide, "/", <f64>::div);
 
 fn get_only_arg(name: &str, mut args: Vec<LongleafValue>) -> VmResult<LongleafValue> {
@@ -117,6 +89,8 @@ impl<'a> TryFrom<&'a str> for DynOp {
             "sin" => Ok(Box::new(Sin)),
             "cos" => Ok(Box::new(Cos)),
             "tan" => Ok(Box::new(Tan)),
+            "exp" => Ok(Box::new(Exp)),
+            "ln" => Ok(Box::new(Ln)),
             "range" => Ok(Box::new(range::Range)),
             _ => Err(()),
         }

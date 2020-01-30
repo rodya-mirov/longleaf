@@ -2,7 +2,7 @@ use super::*;
 
 use crate::parser::{parse_repl_input, ReplInput};
 
-fn run_repl_inputs(input: &[&str], expected: Vec<LongleafValue>) {
+fn run_repl_inputs<T: Into<LongleafValue>>(input: &[&str], expected: Vec<T>) {
     let mut vm = VM::new();
 
     let mut actual = Vec::with_capacity(expected.len());
@@ -29,7 +29,7 @@ fn run_repl_inputs(input: &[&str], expected: Vec<LongleafValue>) {
         .enumerate()
         .for_each(|(i, (exp, act))| {
             let act: LongleafValue = act;
-            let exp: LongleafValue = exp;
+            let exp: LongleafValue = exp.into();
             assert_eq!(act, exp, "Index {}", i);
         });
 }
@@ -44,16 +44,36 @@ fn to_ll_values(data: Vec<Vec<f64>>) -> Vec<LongleafValue> {
 
 #[test]
 fn expr_tests() {
-    run_repl_inputs(&["1+2"], vec![(3.0).into()]);
-    run_repl_inputs(&["1+2*3"], vec![(7.0).into()]);
+    run_repl_inputs(&["1+2"], vec![3.0]);
+    run_repl_inputs(&["1+2*3"], vec![7.0]);
     run_repl_inputs(&["1+[3,4]*2"], to_ll_values(vec![vec![7., 9.]]));
     run_repl_inputs(&["[1,4]*[2,6]+3"], to_ll_values(vec![vec![5., 27.]]));
 }
 
 #[test]
+fn trig_tests() {
+    run_repl_inputs(&["sin(0)", "sin(2)"], vec![0.0, (2.0 as f64).sin()]);
+    run_repl_inputs(&["cos(0)", "cos(2)"], vec![1.0, (2.0 as f64).cos()]);
+    run_repl_inputs(&["tan(0)", "tan(2)"], vec![0.0, (2.0 as f64).tan()]);
+}
+
+#[test]
+fn exp_tests() {
+    run_repl_inputs(
+        &["exp(0)", "exp(1)", "exp(-12.05)"],
+        vec![1.0, (1.0 as f64).exp(), (-12.05 as f64).exp()],
+    );
+
+    run_repl_inputs(
+        &["ln(0)", "ln(1)", "ln(12.05)"],
+        vec![(0.0 as f64).ln(), 0.0, (12.05 as f64).ln()],
+    );
+}
+
+#[test]
 fn var_tests() {
-    run_repl_inputs(&["x=1;", "x+2"], vec![(3.0).into()]);
-    run_repl_inputs(&["x=2*3;", "1+x*7"], vec![(43.0).into()]);
+    run_repl_inputs(&["x=1;", "x+2"], vec![3.0]);
+    run_repl_inputs(&["x=2*3;", "1+x*7"], vec![43.]);
     run_repl_inputs(
         &["x=2;", "y=[3,4];", "1+x*y"],
         to_ll_values(vec![vec![7., 9.]]),
