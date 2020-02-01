@@ -124,11 +124,5 @@ pos_int = @
     | ( ASCII_NONZERO_DIGIT ) ~ ( ASCII_DIGIT )*
     }
 
-
-// Used only for unit testing
-only_expr = { SOI ~ expr ~ EOI }
-only_float_list = { SOI ~ float_list ~ EOI }
-only_float = { SOI ~ float ~ EOI }
-
-
+// Pest magic rule, this discards all whitespace when tokenizing
 WHITESPACE = _{ WHITE_SPACE }

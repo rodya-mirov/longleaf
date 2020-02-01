@@ -5,30 +5,64 @@ use super::ExprNode::*;
 use super::StatementNode::*;
 use super::UnaryOp::*;
 
-type ParseResult<T> = Result<T, ()>;
+fn do_full_test(s: &str, expected: ReplInput) {
+    let actual = parse_repl_input(s).expect("Should parse");
 
-fn to_expr(s: &str) -> ParseResult<ExprNode> {
-    let mut parsed = PestParser::parse(Rule::only_expr, s).map_err(|e| {
-        eprintln!("Error parsing input {}: {}", s, e);
-        ()
-    })?;
+    assert_eq!(actual, expected);
+}
 
-    let mut pair = parsed.next().unwrap().into_inner();
+fn test_parse_fail(s: &str) {
+    let actual = parse_repl_input(s);
+    assert!(actual.is_err());
+}
 
-    assert!(parsed.next().is_none());
+fn parse_fail<T: std::fmt::Debug>(other: T) -> ! {
+    // TODO: fail macro?
+    eprintln!("When parsing, got {:?}, which was unexpected", other);
+    assert!(false);
+    unreachable!()
+}
 
-    let actual = pair.next().unwrap();
+#[test]
+fn no_empty_list() {
+    test_parse_fail("[]");
+    test_parse_fail("x = [];");
+    test_parse_fail("sum([])");
+}
 
-    assert_eq!(pair.next().unwrap().as_rule(), Rule::EOI);
-    assert!(pair.next().is_none());
+#[test]
+fn bool_tests() {
+    do_full_test("true", ReplInput::Expr(ExprNode::Bool(true)));
+    do_full_test("false", ReplInput::Expr(ExprNode::Bool(false)));
+}
 
-    Ok(compile_expr_node(actual))
+#[test]
+fn bool_vec_tests() {
+    do_full_test(
+        "[true, false, true]",
+        ReplInput::Expr(ExprNode::BoolList(vec![true, false, true])),
+    );
+    do_full_test(
+        "[false, false, true, false]",
+        ReplInput::Expr(ExprNode::BoolList(vec![false, false, true, false])),
+    );
+    do_full_test("[true]", ReplInput::Expr(ExprNode::BoolList(vec![true])));
+    do_full_test("[false]", ReplInput::Expr(ExprNode::BoolList(vec![false])));
+}
+
+fn to_expr(s: &str) -> ExprNode {
+    let parsed = parse_repl_input(s).expect("Should parse");
+
+    match parsed {
+        ReplInput::Expr(out) => out,
+        other => parse_fail(other),
+    }
 }
 
 #[test]
 fn to_expr_tests() {
     fn do_test(input: &str, expected: ExprNode) {
-        let actual = to_expr(input).expect("Parse should be successful");
+        let actual = to_expr(input);
 
         assert_eq!(actual, expected);
     }
@@ -174,28 +208,19 @@ fn args(args: &[&str]) -> Args {
     Args(args.iter().map(|s| s.to_string()).collect())
 }
 
-fn to_float_list(s: &str) -> ParseResult<Vec<f64>> {
-    let mut parsed = PestParser::parse(Rule::only_float_list, s).map_err(|e| {
-        eprintln!("Error parsing input {}: {}", s, e);
-        ()
-    })?;
+fn to_float_list(s: &str) -> Vec<f64> {
+    let parsed = parse_repl_input(s).expect("Should parse");
 
-    let mut pair = parsed.next().unwrap().into_inner();
-
-    assert!(parsed.next().is_none());
-
-    let float_list = pair.next().unwrap();
-
-    assert_eq!(pair.next().unwrap().as_rule(), Rule::EOI);
-    assert!(pair.next().is_none());
-
-    Ok(compile_float_list(float_list))
+    match parsed {
+        ReplInput::Expr(ExprNode::FloatList(out)) => out,
+        other => parse_fail(other),
+    }
 }
 
 #[test]
 fn float_vec_tests() {
     fn do_test(input: &str, expected: &[f64]) {
-        let actual = to_float_list(input).expect("Parse should be successful");
+        let actual = to_float_list(input);
 
         let ar: &[f64] = &actual;
 
@@ -216,28 +241,19 @@ fn float_vec_tests() {
     do_test("[0.0132, -123.1,]", &[0.0132, -123.1]);
 }
 
-fn to_float(s: &str) -> ParseResult<f64> {
-    let mut parsed = PestParser::parse(Rule::only_float, s).map_err(|e| {
-        eprintln!("Error parsing input {}: {}", s, e);
-        ()
-    })?;
+fn to_float(s: &str) -> f64 {
+    let parsed = parse_repl_input(s).expect("Should parse");
 
-    let mut pair = parsed.next().unwrap().into_inner();
-
-    assert!(parsed.next().is_none());
-
-    let float = pair.next().unwrap();
-
-    assert_eq!(pair.next().unwrap().as_rule(), Rule::EOI);
-    assert!(pair.next().is_none());
-
-    Ok(compile_float(float))
+    match parsed {
+        ReplInput::Expr(ExprNode::Float(f)) => f,
+        other => parse_fail(other)
+    }
 }
 
 #[test]
 fn float_tests() {
     fn do_test(input: &str, expected: f64) {
-        let actual = to_float(input).expect("Parse should be successful");
+        let actual = to_float(input);
 
         assert_eq!(actual, expected);
     }
