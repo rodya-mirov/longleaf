@@ -57,15 +57,13 @@ fn make_range(
 }
 
 fn get_float_helper(f: LongleafValue, arg_name: &str) -> VmResult<f64> {
+    let type_name = f.type_name();
+
     match f {
         LongleafValue::Float(f) => Ok(f),
-        LongleafValue::FloatList(_) => Err(EvalError::TypeMismatch(format!(
-            "Argument '{}' needed to be a float, but got a float list",
-            arg_name
-        ))),
-        LongleafValue::FunctionDefinition(_, _) => Err(EvalError::TypeMismatch(format!(
-            "Argument '{}' needed to be a float, but got a function",
-            arg_name
+        _ => Err(EvalError::TypeMismatch(format!(
+            "Argument '{}' needed to be a float, but got a {}",
+            arg_name, type_name
         ))),
     }
 }

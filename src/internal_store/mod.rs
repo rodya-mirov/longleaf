@@ -6,6 +6,8 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::zero::Zero;
 
+// TODO: conceivably there is a lot of behavior here that is worth unit testing
+
 #[derive(Copy, Clone, Debug)]
 pub struct AllocationError {
     pub num_elements: usize,
@@ -149,7 +151,10 @@ impl VectorStore {
                     self.return_vector(*bools);
                 }
                 Err(not_bools) => {
-                    panic!("Received dropped vector of elem_type {:?} and full type {:?}, but have no code to handle that", type_id, not_bools.type_id());
+                    panic!(
+                        "Received dropped vector of elem_type {:?} and full type {:?}, but have no code to handle that",
+                        type_id, not_bools.type_id()
+                    );
                 }
             },
         }

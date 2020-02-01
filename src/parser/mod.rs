@@ -44,6 +44,8 @@ pub enum ExprNode {
     VariableRef(String),
     Float(f64),
     FloatList(Vec<f64>),
+    Bool(bool),
+    BoolList(Vec<bool>),
     FunctionCall(String, Vec<ExprNode>),
     UnaryExpr(UnaryOp, Box<ExprNode>),
     BinaryExpr(BinaryOp, Box<ExprNode>, Box<ExprNode>),
@@ -238,7 +240,9 @@ fn compile_base_expr_node(pair: Pair<'_, Rule>) -> ExprNode {
     let pair = only_child(pair);
 
     match pair.as_rule() {
+        Rule::bool => ExprNode::Bool(compile_bool(pair)),
         Rule::float => ExprNode::Float(compile_float(pair)),
+        Rule::bool_list => ExprNode::BoolList(compile_bool_list(pair)),
         Rule::float_list => ExprNode::FloatList(compile_float_list(pair)),
         Rule::paren_expr => compile_expr_node(only_child(pair)),
         Rule::id => ExprNode::VariableRef(compile_id(pair)),
@@ -316,10 +320,30 @@ fn compile_function_call(pair: Pair<'_, Rule>) -> ExprNode {
     ExprNode::FunctionCall(id, args)
 }
 
+fn compile_bool(pair: Pair<'_, Rule>) -> bool {
+    assert_eq!(pair.as_rule(), Rule::bool);
+
+    pair.as_str().trim().parse().unwrap()
+}
+
 fn compile_float(pair: Pair<'_, Rule>) -> f64 {
     assert_eq!(pair.as_rule(), Rule::float);
 
     pair.as_str().trim().parse().unwrap()
+}
+
+fn compile_bool_list(pair: Pair<'_, Rule>) -> Vec<bool> {
+    assert_eq!(pair.as_rule(), Rule::bool_list);
+
+    let mut out = Vec::new();
+
+    for child in pair.into_inner() {
+        out.push(compile_bool(child));
+    }
+
+    out.shrink_to_fit();
+
+    out
 }
 
 fn compile_float_list(pair: Pair<'_, Rule>) -> Vec<f64> {
@@ -330,6 +354,8 @@ fn compile_float_list(pair: Pair<'_, Rule>) -> Vec<f64> {
     for child in pair.into_inner() {
         out.push(compile_float(child));
     }
+
+    out.shrink_to_fit();
 
     out
 }

@@ -104,7 +104,11 @@ impl VM {
 
     pub fn evaluate_expr(&mut self, expr: ExprNode) -> VmResult<LongleafValue> {
         let out: LongleafValue = match expr {
+            ExprNode::Bool(b) => LongleafValue::Bool(b),
             ExprNode::Float(f) => LongleafValue::Float(f),
+            ExprNode::BoolList(vals) => {
+                LongleafValue::BoolList(Rc::new(self.arena.track_vector(vals)))
+            }
             ExprNode::FloatList(vals) => {
                 LongleafValue::FloatList(Rc::new(self.arena.track_vector(vals)))
             }
@@ -175,16 +179,11 @@ impl VM {
                 return Err(EvalError::UnknownVariable(name_str.to_string()));
             }
             Some(LongleafValue::FunctionDefinition(fn_args, _expr)) => fn_args.names.len(),
-            Some(LongleafValue::Float(_)) => {
+            Some(other) => {
+                let type_name = other.type_name();
                 return Err(EvalError::TypeMismatch(format!(
-                    "Name {} is associated to a float, but needed a function",
-                    name_str
-                )));
-            }
-            Some(LongleafValue::FloatList(_)) => {
-                return Err(EvalError::TypeMismatch(format!(
-                    "Name {} is associated to a float list, but needed a function",
-                    name_str
+                    "Name {} is associated to a {}, but needed a function",
+                    name_str, type_name
                 )));
             }
         };
