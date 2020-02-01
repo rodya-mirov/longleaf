@@ -14,9 +14,12 @@ use builtins::Operation;
 use crate::values::{Args, LongleafValue};
 use crate::MEMORY_CAPACITY;
 
+// TODO: this is not a great way to manage this; if we forget to add stuff to this
+// set, then you can have weird things (e.g. setting "true" to a value, which is
+// then completely inaccessible but takes up memory)
 lazy_static! {
     static ref RESERVED_WORDS: HashSet<&'static str> =
-        vec!["sin", "cos", "tan", "exp", "ln", "range"]
+        vec!["true", "false", "sin", "cos", "tan", "exp", "ln", "range", "length", "sum"]
             .into_iter()
             .collect();
 }

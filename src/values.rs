@@ -34,6 +34,18 @@ impl LongleafValue {
     }
 }
 
+impl From<TrackedVector<bool>> for LongleafValue {
+    fn from(tv: TrackedVector<bool>) -> LongleafValue {
+        LongleafValue::BoolList(Rc::new(tv))
+    }
+}
+
+impl From<bool> for LongleafValue {
+    fn from(b: bool) -> LongleafValue {
+        LongleafValue::Bool(b)
+    }
+}
+
 impl From<TrackedVector<f64>> for LongleafValue {
     fn from(tv: TrackedVector<f64>) -> LongleafValue {
         LongleafValue::FloatList(Rc::new(tv))

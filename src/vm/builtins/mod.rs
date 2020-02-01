@@ -30,6 +30,19 @@ impl_float_binary!(Minus, "-", <f64>::sub);
 impl_float_binary!(Times, "*", <f64>::mul);
 impl_float_binary!(Divide, "/", <f64>::div);
 
+// Comparison operators; note that Cmp / PartialCmp is not as forgiving with referencing / dereferencing
+// as addition, etc. so we need both forms of the functions
+impl_float_binary!(Geq, ">=", |a: f64, b: &f64| { a >= *b }, |a, b| { a >= b });
+impl_float_binary!(Gt, ">", |a: f64, b: &f64| { a > *b }, |a, b| { a > b });
+impl_float_binary!(Leq, "<=", |a: f64, b: &f64| { a <= *b }, |a, b| { a <= b });
+impl_float_binary!(Lt, "<", |a: f64, b: &f64| { a < *b }, |a, b| { a < b });
+impl_float_binary!(Equals, "==", |a: f64, b: &f64| { a == *b }, |a, b| {
+    a == b
+});
+impl_float_binary!(NotEquals, "!=", |a: f64, b: &f64| { a != *b }, |a, b| {
+    a != b
+});
+
 fn get_only_arg(name: &str, mut args: Vec<LongleafValue>) -> VmResult<LongleafValue> {
     if args.len() != 1 {
         return Err(EvalError::WrongNumArgs(format!(
@@ -118,6 +131,12 @@ impl From<BinaryOp> for DynOp {
             BinaryOp::Minus => Box::new(Minus),
             BinaryOp::Divide => Box::new(Divide),
             BinaryOp::Times => Box::new(Times),
+            BinaryOp::Geq => Box::new(Geq),
+            BinaryOp::Gt => Box::new(Gt),
+            BinaryOp::Leq => Box::new(Leq),
+            BinaryOp::Lt => Box::new(Lt),
+            BinaryOp::Equals => Box::new(Equals),
+            BinaryOp::NotEquals => Box::new(NotEquals),
         }
     }
 }

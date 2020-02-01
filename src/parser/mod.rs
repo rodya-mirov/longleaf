@@ -44,8 +44,8 @@ pub enum ExprNode {
     VariableRef(String),
     Float(f64),
     FloatList(Vec<f64>),
-    Bool(bool),
-    BoolList(Vec<bool>),
+    Bool(bool),          // TODO: unit test parser producing these
+    BoolList(Vec<bool>), // TODO: Unit test parser producing these
     FunctionCall(String, Vec<ExprNode>),
     UnaryExpr(UnaryOp, Box<ExprNode>),
     BinaryExpr(BinaryOp, Box<ExprNode>, Box<ExprNode>),
@@ -62,6 +62,13 @@ pub enum BinaryOp {
     Minus,
     Times,
     Divide,
+    // TODO: abbreviations too enigmatic?
+    Geq,
+    Gt,
+    Leq,
+    Lt,
+    Equals,
+    NotEquals,
 }
 
 pub fn parse_repl_input(input: &str) -> ParseResult<ReplInput> {
@@ -218,9 +225,9 @@ fn compile_unary_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
     let first = pairs.next().unwrap();
 
     match first.as_rule() {
-        Rule::base_expr => {
+        Rule::comp_expr => {
             assert!(pairs.next().is_none());
-            compile_base_expr_node(first)
+            compile_comp_expr_node(first)
         }
         Rule::unary_op => {
             let op = compile_unary_op(first);
@@ -231,6 +238,49 @@ fn compile_unary_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
             ExprNode::UnaryExpr(op, Box::new(next))
         }
         other => panic!("Unexpected rule {:?} when parsing unary expression", other),
+    }
+}
+
+fn compile_comp_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
+    assert_eq!(parsed.as_rule(), Rule::comp_expr);
+
+    let mut pairs = parsed.into_inner();
+
+    let first = pairs.next().unwrap();
+
+    assert_eq!(first.as_rule(), Rule::base_expr);
+
+    let left = compile_base_expr_node(first);
+
+    if let Some(op) = pairs.next() {
+        assert_eq!(op.as_rule(), Rule::comp_op);
+
+        let right = pairs.next().unwrap();
+        assert_eq!(right.as_rule(), Rule::base_expr);
+
+        let right = compile_base_expr_node(right);
+
+        let bin_op = compile_comp_op(op);
+
+        ExprNode::BinaryExpr(bin_op, Box::new(left), Box::new(right))
+    } else {
+        left
+    }
+}
+
+fn compile_comp_op(pair: Pair<'_, Rule>) -> BinaryOp {
+    assert_eq!(pair.as_rule(), Rule::comp_op);
+
+    let child = only_child(pair);
+
+    match child.as_rule() {
+        Rule::GEQ => BinaryOp::Geq,
+        Rule::GT => BinaryOp::Gt,
+        Rule::LEQ => BinaryOp::Leq,
+        Rule::LT => BinaryOp::Lt,
+        Rule::EQ => BinaryOp::Equals,
+        Rule::NEQ => BinaryOp::NotEquals,
+        other => panic!("Unexpected rule {:?} as comp_op", other),
     }
 }
 

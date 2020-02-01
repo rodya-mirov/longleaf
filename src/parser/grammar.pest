@@ -40,8 +40,12 @@ mul_expr = { unary_expr ~ ( mul_op ~ unary_expr )* }
 // for parsing, while the add_expr / mul_expr are in list form;
 // this also makes sure -10.7 gets parsed as a number, not -(10.7)
 unary_expr =
-    { base_expr
+    { comp_expr
     | unary_op ~ unary_expr
+    }
+
+comp_expr =
+    { base_expr ~ ( comp_op ~ base_expr )?
     }
 
 base_expr = { paren_expr | function_call | float | float_list | bool | bool_list | function_definition | id }
@@ -71,11 +75,20 @@ add_op = { PLUS | MINUS }
 mul_op = { TIMES | DIVIDE }
 unary_op = { NEG }
 
+comp_op = { GEQ | GT | LEQ | LT | EQ | NEQ }
+
 PLUS = { "+" }
 MINUS = { "-" }
 TIMES = { "*" }
 DIVIDE = { "/" }
 NEG = { "-" }
+
+GEQ = { ">=" }
+GT = { ">" }
+LEQ = { "<=" }
+LT = { "<" }
+EQ = { "==" }
+NEQ = { "!=" }
 
 id = @{ ASCII_ALPHA ~ ( ASCII_ALPHA | ASCII_DIGIT )* }
 
