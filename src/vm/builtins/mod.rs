@@ -2,13 +2,13 @@ use std::convert::TryFrom;
 use std::ops::{Add as _, Div as _, Mul as _, Neg as _, Sub as _};
 
 use crate::parser::{BinaryOp, UnaryOp};
-use crate::vm::PAR_CHUNK_LEN;
 
 use super::{EvalError, LongleafValue, VectorStore, VmResult};
 
 #[macro_use]
 mod builtins_macros;
 
+mod list_builtins;
 mod range;
 
 pub trait Operation {
@@ -92,7 +92,12 @@ impl<'a> TryFrom<&'a str> for DynOp {
             "tan" => Ok(Box::new(Tan)),
             "exp" => Ok(Box::new(Exp)),
             "ln" => Ok(Box::new(Ln)),
+
             "range" => Ok(Box::new(range::Range)),
+
+            "length" => Ok(Box::new(list_builtins::Length)),
+            "sum" => Ok(Box::new(list_builtins::Sum)),
+
             _ => Err(()),
         }
     }

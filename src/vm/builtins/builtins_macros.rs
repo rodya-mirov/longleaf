@@ -60,7 +60,6 @@ macro_rules! unary_fn_vector {
         out_slice
             .par_iter_mut()
             .zip(a.par_iter().copied())
-            .with_min_len(PAR_CHUNK_LEN)
             .for_each(|(o, i)| {
                 *o = func(i);
             });
@@ -145,7 +144,6 @@ macro_rules! scalar_vector {
         out_slice
             .par_iter_mut()
             .zip(b.par_iter())
-            .with_min_len(PAR_CHUNK_LEN)
             .for_each(|(o, bi)| {
                 *o = $op(a, bi);
             });
@@ -169,7 +167,6 @@ macro_rules! vector_scalar {
         out_slice
             .par_iter_mut()
             .zip(a.par_iter())
-            .with_min_len(PAR_CHUNK_LEN)
             .for_each(|(o, &ai)| {
                 *o = $op(ai, b);
             });
@@ -202,7 +199,6 @@ macro_rules! vector_vector {
             .par_iter_mut()
             .zip(a.par_iter())
             .zip(b.par_iter())
-            .with_min_len(PAR_CHUNK_LEN)
             .for_each(|((o, &ai), bi)| {
                 *o = $op(ai, bi);
             });

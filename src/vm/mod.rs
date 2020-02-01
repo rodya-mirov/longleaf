@@ -14,8 +14,6 @@ use builtins::Operation;
 use crate::values::{Args, LongleafValue};
 use crate::MEMORY_CAPACITY;
 
-const PAR_CHUNK_LEN: usize = 128; // TODO: find the right chunk length
-
 lazy_static! {
     static ref RESERVED_WORDS: HashSet<&'static str> =
         vec!["sin", "cos", "tan", "exp", "ln", "range"]
