@@ -19,7 +19,7 @@ use crate::MEMORY_CAPACITY;
 // then completely inaccessible but takes up memory)
 lazy_static! {
     static ref RESERVED_WORDS: HashSet<&'static str> =
-        vec!["true", "false", "sin", "cos", "tan", "exp", "ln", "range", "length", "sum"]
+        vec!["true", "false", "sin", "cos", "tan", "exp", "ln", "range", "length", "sum", "dot"]
             .into_iter()
             .collect();
 }

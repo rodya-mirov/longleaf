@@ -110,6 +110,7 @@ impl<'a> TryFrom<&'a str> for DynOp {
 
             "length" => Ok(Box::new(list_builtins::Length)),
             "sum" => Ok(Box::new(list_builtins::Sum)),
+            "dot" => Ok(Box::new(list_builtins::Dot)),
 
             _ => Err(()),
         }

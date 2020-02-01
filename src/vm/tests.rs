@@ -98,6 +98,29 @@ fn expr_tests() {
 }
 
 #[test]
+fn dot_tests() {
+    run_repl_inputs(&["dot([1], [1])"], vec![1.]);
+    run_repl_inputs(&["dot([-1], [1])"], vec![-1.]);
+
+    run_repl_inputs(
+        &[
+            "x = [1, 2, 3];",
+            "y = [-1, 12, -3];",
+            "dot(x, y)",
+            "dot(y, x)",
+            "dot(x, x)",
+            "dot(y, y)",
+        ],
+        vec![
+            -1. + 24. + -9.,
+            -1. + 24. + -9.,
+            1. + 4. + 9.,
+            1. + 144. + 9.,
+        ],
+    );
+}
+
+#[test]
 fn trig_tests() {
     run_repl_inputs(&["sin(0)", "sin(2)"], vec![0.0, (2.0 as f64).sin()]);
     run_repl_inputs(&["cos(0)", "cos(2)"], vec![1.0, (2.0 as f64).cos()]);
