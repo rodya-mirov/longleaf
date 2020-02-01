@@ -1,8 +1,8 @@
 use std::fmt;
 use std::rc::Rc;
 
+use crate::internal_store::TrackedVector;
 use crate::parser::StatementNode;
-use crate::vector_store::TrackedVector;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Args {
@@ -14,7 +14,7 @@ pub struct Args {
 #[derive(Debug, Clone, PartialEq)]
 pub enum LongleafValue {
     Float(f64),
-    FloatList(Rc<TrackedVector>),
+    FloatList(Rc<TrackedVector<f64>>),
     FunctionDefinition(Rc<Args>, Rc<Vec<StatementNode>>),
 }
 
@@ -30,8 +30,8 @@ impl LongleafValue {
     }
 }
 
-impl From<TrackedVector> for LongleafValue {
-    fn from(tv: TrackedVector) -> LongleafValue {
+impl From<TrackedVector<f64>> for LongleafValue {
+    fn from(tv: TrackedVector<f64>) -> LongleafValue {
         LongleafValue::FloatList(Rc::new(tv))
     }
 }

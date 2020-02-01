@@ -6,16 +6,21 @@ extern crate lazy_static;
 
 use std::io::{self, prelude::*};
 
+mod internal_store;
 mod parser;
 mod values;
-mod vector_store;
+// TODO: delete file
+//mod vector_store;
 mod vm;
+mod zero;
 
 #[macro_use]
 mod macros;
 
 use parser::ReplInput;
 use vm::VM;
+
+pub const MEMORY_CAPACITY: usize = 1 << 32; // 4 GB
 
 fn main() {
     rayon::ThreadPoolBuilder::new()

@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 use std::rc::Rc;
 
+use crate::internal_store::{AllocationError, MemoryUsageReport, VectorStore};
 use crate::parser::{BinaryOp, BlockStmt, ExprNode, StatementNode, UnaryOp};
-use crate::vector_store::{AllocationError, MemoryUsageReport, VectorStore};
 
 mod namespace;
 use namespace::Namespace;
@@ -12,6 +12,7 @@ mod builtins;
 use builtins::Operation;
 
 use crate::values::{Args, LongleafValue};
+use crate::MEMORY_CAPACITY;
 
 const PAR_CHUNK_LEN: usize = 128; // TODO: find the right chunk length
 
@@ -39,8 +40,8 @@ pub enum EvalError {
 impl From<AllocationError> for EvalError {
     fn from(e: AllocationError) -> EvalError {
         EvalError::OutOfMemory(format!(
-            "Insufficient available memory to allocate vector of size {}",
-            e.length
+            "Insufficient available memory to allocate vector of size {}, requiring {} bytes",
+            e.num_elements, e.mem_required
         ))
     }
 }
@@ -59,7 +60,7 @@ impl VM {
     pub fn new() -> Self {
         VM {
             variable_definitions: Namespace::new(),
-            arena: VectorStore::default(),
+            arena: VectorStore::new(MEMORY_CAPACITY),
         }
     }
 
@@ -67,7 +68,7 @@ impl VM {
         self.arena.get_memory_usage()
     }
 
-    pub fn garbage_collect(&self) {
+    pub fn garbage_collect(&mut self) {
         self.arena.garbage_collect();
     }
 
@@ -166,7 +167,7 @@ impl VM {
                 results.push(self.evaluate_expr(arg)?);
             }
 
-            return op.process(results, &self.arena);
+            return op.process(results, &mut self.arena);
         }
 
         let num_args: usize = match self.variable_definitions.lookup_variable(name_str) {
@@ -254,7 +255,7 @@ impl VM {
         // TODO: this extra vec allocation is gross but fixing it
         // is such a non-issue that I can't afford the extra LoC for it
         // right now
-        op.process(vec![inner], &self.arena)
+        op.process(vec![inner], &mut self.arena)
     }
 
     #[allow(clippy::cognitive_complexity)] // False positive from macro expansions
@@ -268,7 +269,7 @@ impl VM {
         let b: LongleafValue = self.evaluate_expr(b)?;
 
         let op: Box<dyn Operation> = op.into();
-        op.process(vec![a, b], &self.arena)
+        op.process(vec![a, b], &mut self.arena)
     }
 }
 

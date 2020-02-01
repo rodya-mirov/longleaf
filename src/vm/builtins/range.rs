@@ -12,7 +12,11 @@ impl Operation for Range {
         "range"
     }
 
-    fn process(&self, args: Vec<LongleafValue>, store: &VectorStore) -> VmResult<LongleafValue> {
+    fn process(
+        &self,
+        args: Vec<LongleafValue>,
+        store: &mut VectorStore,
+    ) -> VmResult<LongleafValue> {
         let (a, b, c) = get_three_args(self.name(), args)?;
 
         make_range(a, b, c, store)
@@ -23,7 +27,7 @@ fn make_range(
     start: LongleafValue,
     end: LongleafValue,
     step: LongleafValue,
-    arena: &VectorStore,
+    arena: &mut VectorStore,
 ) -> VmResult<LongleafValue> {
     let start = get_float_helper(start, "0 (start)")?;
     let end = get_float_helper(end, "1 (end)")?;
@@ -73,9 +77,9 @@ mod tests {
     #[test]
     fn make_range_tests() {
         fn do_range_test(start: f64, end: f64, step: f64, expected: Vec<f64>) {
-            let store = VectorStore::default();
+            let mut store = VectorStore::new(1 << 32);
 
-            let actual = make_range(start.into(), end.into(), step.into(), &store).unwrap();
+            let actual = make_range(start.into(), end.into(), step.into(), &mut store).unwrap();
 
             let expected: LongleafValue = store.track_vector(expected).into();
 

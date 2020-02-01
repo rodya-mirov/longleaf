@@ -14,7 +14,8 @@ mod range;
 pub trait Operation {
     fn num_args(&self) -> usize;
     fn name(&self) -> &'static str;
-    fn process(&self, args: Vec<LongleafValue>, store: &VectorStore) -> VmResult<LongleafValue>;
+    fn process(&self, args: Vec<LongleafValue>, store: &mut VectorStore)
+        -> VmResult<LongleafValue>;
 }
 
 impl_float_unary!(Sin, "sin", <f64>::sin);

@@ -15,7 +15,7 @@ macro_rules! impl_float_unary {
             fn process(
                 &self,
                 args: Vec<LongleafValue>,
-                store: &VectorStore,
+                store: &mut VectorStore,
             ) -> VmResult<LongleafValue> {
                 float_unary!(self.name(), args, $func, store)
             }
@@ -86,7 +86,7 @@ macro_rules! impl_float_binary {
             fn process(
                 &self,
                 args: Vec<LongleafValue>,
-                store: &VectorStore,
+                store: &mut VectorStore,
             ) -> VmResult<LongleafValue> {
                 float_binary!(self.name(), args, $func, store)
             }

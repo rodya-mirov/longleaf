@@ -35,7 +35,7 @@ fn run_repl_inputs<T: Into<LongleafValue>>(input: &[&str], expected: Vec<T>) {
 }
 
 fn to_ll_values(data: Vec<Vec<f64>>) -> Vec<LongleafValue> {
-    let dummy: VectorStore = VectorStore::default();
+    let mut dummy: VectorStore = VectorStore::new(1 << 32);
 
     data.into_iter()
         .map(|v| dummy.track_vector(v).into())
