@@ -202,9 +202,6 @@ fn float_vec_tests() {
         assert_eq!(ar, expected);
     }
 
-    do_test("[]", &[]);
-    do_test("[,]", &[]);
-
     do_test("[1.0 ]", &[1.0]);
     do_test("[1.]", &[1.0]);
 

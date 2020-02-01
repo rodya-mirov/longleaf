@@ -93,8 +93,7 @@ NEQ = { "!=" }
 id = @{ ASCII_ALPHA ~ ( ASCII_ALPHA | ASCII_DIGIT )* }
 
 float_list =
-    { "[" ~ (",")? ~ "]"
-    | "[" ~ float ~ ( "," ~ float )* ~ (",")? ~ "]"
+    { "[" ~ float ~ ( "," ~ float )* ~ (",")? ~ "]"
     }
 
 
@@ -111,8 +110,7 @@ float = @{
 // TODO: currently [] can't parse as an "untyped empty list" which it probably should?
 // could just disallow empty lists, I honestly don't see the use for them at the moment
 bool_list =
-    { "[" ~ (",")? ~ "]"
-    | "[" ~ bool ~ ( "," ~ bool )* ~ (",")? ~ "]"
+    { "[" ~ bool ~ ( "," ~ bool )* ~ (",")? ~ "]"
     }
 
 bool = { TRUE | FALSE }

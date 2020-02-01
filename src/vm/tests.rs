@@ -92,6 +92,9 @@ fn expr_tests() {
             vec![true, false, true],
         ],
     );
+
+    run_repl_inputs(&["sum([1, 2, 3])"], vec![6.]);
+    run_repl_inputs(&["length([1, 2, 3])"], vec![3.]);
 }
 
 #[test]
