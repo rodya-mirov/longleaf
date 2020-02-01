@@ -23,6 +23,35 @@ fn parse_fail<T: std::fmt::Debug>(other: T) -> ! {
     unreachable!()
 }
 
+fn to_expr(s: &str) -> ExprNode {
+    let parsed = parse_repl_input(s).expect("Should parse");
+
+    match parsed {
+        ReplInput::Expr(out) => out,
+        other => parse_fail(other),
+    }
+}
+
+fn expr_test(s: &str, expected: ExprNode) {
+    let actual = to_expr(s);
+
+    assert_eq!(actual, expected);
+}
+
+fn to_statement(s: &str) -> StatementNode {
+    let parsed = parse_repl_input(s).expect("Should parse");
+
+    match parsed {
+        ReplInput::Statement(out) => out,
+        other => parse_fail(other),
+    }
+}
+
+fn statement_test(s: &str, expected: StatementNode) {
+    let actual = to_statement(s);
+    assert_eq!(actual, expected);
+}
+
 #[test]
 fn no_empty_list() {
     test_parse_fail("[]");
@@ -50,24 +79,82 @@ fn bool_vec_tests() {
     do_full_test("[false]", ReplInput::Expr(ExprNode::BoolList(vec![false])));
 }
 
-fn to_expr(s: &str) -> ExprNode {
-    let parsed = parse_repl_input(s).expect("Should parse");
+#[test]
+fn comp_tests() {
+    expr_test(
+        "1 + 2 >= 3 + 4",
+        ExprNode::BinaryExpr(
+            BinaryOp::Geq,
+            Box::new(ExprNode::BinaryExpr(
+                BinaryOp::Plus,
+                Box::new(ExprNode::Float(1.)),
+                Box::new(ExprNode::Float(2.)),
+            )),
+            Box::new(ExprNode::BinaryExpr(
+                BinaryOp::Plus,
+                Box::new(ExprNode::Float(3.)),
+                Box::new(ExprNode::Float(4.)),
+            )),
+        ),
+    );
+    expr_test(
+        "1 + 2 > 3 + 4",
+        ExprNode::BinaryExpr(
+            BinaryOp::Gt,
+            Box::new(ExprNode::BinaryExpr(
+                BinaryOp::Plus,
+                Box::new(ExprNode::Float(1.)),
+                Box::new(ExprNode::Float(2.)),
+            )),
+            Box::new(ExprNode::BinaryExpr(
+                BinaryOp::Plus,
+                Box::new(ExprNode::Float(3.)),
+                Box::new(ExprNode::Float(4.)),
+            )),
+        ),
+    );
+    expr_test(
+        "1 + 2 < 3 + 4",
+        ExprNode::BinaryExpr(
+            BinaryOp::Lt,
+            Box::new(ExprNode::BinaryExpr(
+                BinaryOp::Plus,
+                Box::new(ExprNode::Float(1.)),
+                Box::new(ExprNode::Float(2.)),
+            )),
+            Box::new(ExprNode::BinaryExpr(
+                BinaryOp::Plus,
+                Box::new(ExprNode::Float(3.)),
+                Box::new(ExprNode::Float(4.)),
+            )),
+        ),
+    );
 
-    match parsed {
-        ReplInput::Expr(out) => out,
-        other => parse_fail(other),
-    }
+    expr_test(
+        "[1, 2, 3] != 2 + [5, 4]",
+        BinaryExpr(
+            NotEquals,
+            Box::new(FloatList(vec![1., 2., 3.])),
+            Box::new(BinaryExpr(
+                Plus,
+                Box::new(Float(2.)),
+                Box::new(FloatList(vec![5., 4.])),
+            )),
+        ),
+    );
+
+    statement_test(
+        "isSame = 12 == 13;",
+        StatementNode::VarDefn(
+            "isSame".to_string(),
+            BinaryExpr(Equals, Box::new(Float(12.)), Box::new(Float(13.))),
+        ),
+    );
 }
 
 #[test]
 fn to_expr_tests() {
-    fn do_test(input: &str, expected: ExprNode) {
-        let actual = to_expr(input);
-
-        assert_eq!(actual, expected);
-    }
-
-    do_test(
+    expr_test(
         "12 * 1 + 15",
         BinaryExpr(
             Plus,
@@ -80,7 +167,7 @@ fn to_expr_tests() {
         ),
     );
 
-    do_test(
+    expr_test(
         "12 * -1.12 + (.15 * --10.7)",
         BinaryExpr(
             Plus,
@@ -100,7 +187,7 @@ fn to_expr_tests() {
         ),
     );
 
-    do_test(
+    expr_test(
         "f(1, 2, 3+4)",
         FunctionCall(
             "f".to_string(),
@@ -112,12 +199,12 @@ fn to_expr_tests() {
         ),
     );
 
-    do_test(
+    expr_test(
         "sin(x)",
         FunctionCall("sin".to_string(), vec![VariableRef("x".to_string())]),
     );
 
-    do_test(
+    expr_test(
         "-cos(12+f(x)-1)",
         UnaryExpr(
             Negate,
@@ -139,7 +226,7 @@ fn to_expr_tests() {
         ),
     );
 
-    do_test(
+    expr_test(
         "12 + \\x => x + 12",
         BinaryExpr(
             Plus,
@@ -155,7 +242,7 @@ fn to_expr_tests() {
         ),
     );
 
-    do_test(
+    expr_test(
         "12 + \\x => \\y => x + y + 12",
         BinaryExpr(
             Plus,
@@ -174,7 +261,7 @@ fn to_expr_tests() {
         ),
     );
 
-    do_test(
+    expr_test(
         "12 + \\x => { f = \\y => x + y + 12; return f(x); }",
         BinaryExpr(
             Plus,
@@ -246,7 +333,7 @@ fn to_float(s: &str) -> f64 {
 
     match parsed {
         ReplInput::Expr(ExprNode::Float(f)) => f,
-        other => parse_fail(other)
+        other => parse_fail(other),
     }
 }
 

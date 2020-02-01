@@ -31,7 +31,11 @@ return_stmt = { "return" ~ expr ~ ";" }
 
 var_defn_stmt = { id ~ "=" ~ expr ~ ";" }
 
-expr = { add_expr }
+expr = { comp_expr }
+
+comp_expr =
+    { add_expr ~ ( comp_op ~ add_expr )?
+    }
 
 add_expr = { mul_expr ~ ( add_op ~ mul_expr )* }
 mul_expr = { unary_expr ~ ( mul_op ~ unary_expr )* }
@@ -40,12 +44,8 @@ mul_expr = { unary_expr ~ ( mul_op ~ unary_expr )* }
 // for parsing, while the add_expr / mul_expr are in list form;
 // this also makes sure -10.7 gets parsed as a number, not -(10.7)
 unary_expr =
-    { comp_expr
+    { base_expr
     | unary_op ~ unary_expr
-    }
-
-comp_expr =
-    { base_expr ~ ( comp_op ~ base_expr )?
     }
 
 base_expr = { paren_expr | function_call | float | float_list | bool | bool_list | function_definition | id }

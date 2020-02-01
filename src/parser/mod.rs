@@ -160,7 +160,27 @@ fn compile_block_stmt(pair: Pair<'_, Rule>) -> BlockStmt {
 fn compile_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
     assert_eq!(parsed.as_rule(), Rule::expr);
 
-    compile_add_expr_node(only_child(parsed))
+    compile_comp_expr_node(only_child(parsed))
+}
+
+fn compile_comp_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
+    assert_eq!(parsed.as_rule(), Rule::comp_expr);
+
+    let mut pairs = parsed.into_inner();
+
+    let left = pairs.next().unwrap();
+    let left = compile_add_expr_node(left);
+
+    if let Some(op) = pairs.next() {
+        let bin_op = compile_comp_op(op);
+
+        let right = pairs.next().unwrap();
+        let right = compile_add_expr_node(right);
+
+        ExprNode::BinaryExpr(bin_op, Box::new(left), Box::new(right))
+    } else {
+        left
+    }
 }
 
 fn compile_add_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
@@ -225,9 +245,9 @@ fn compile_unary_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
     let first = pairs.next().unwrap();
 
     match first.as_rule() {
-        Rule::comp_expr => {
+        Rule::base_expr => {
             assert!(pairs.next().is_none());
-            compile_comp_expr_node(first)
+            compile_base_expr_node(first)
         }
         Rule::unary_op => {
             let op = compile_unary_op(first);
@@ -238,33 +258,6 @@ fn compile_unary_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
             ExprNode::UnaryExpr(op, Box::new(next))
         }
         other => panic!("Unexpected rule {:?} when parsing unary expression", other),
-    }
-}
-
-fn compile_comp_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
-    assert_eq!(parsed.as_rule(), Rule::comp_expr);
-
-    let mut pairs = parsed.into_inner();
-
-    let first = pairs.next().unwrap();
-
-    assert_eq!(first.as_rule(), Rule::base_expr);
-
-    let left = compile_base_expr_node(first);
-
-    if let Some(op) = pairs.next() {
-        assert_eq!(op.as_rule(), Rule::comp_op);
-
-        let right = pairs.next().unwrap();
-        assert_eq!(right.as_rule(), Rule::base_expr);
-
-        let right = compile_base_expr_node(right);
-
-        let bin_op = compile_comp_op(op);
-
-        ExprNode::BinaryExpr(bin_op, Box::new(left), Box::new(right))
-    } else {
-        left
     }
 }
 
