@@ -1,3 +1,5 @@
+#![allow(clippy::float_cmp)] // Just to allow the user to do == and !=
+
 use std::convert::TryFrom;
 use std::ops::{Add as _, Div as _, Mul as _, Neg as _, Sub as _};
 
