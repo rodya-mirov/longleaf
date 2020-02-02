@@ -1,26 +1,12 @@
-#[macro_use]
-extern crate pest_derive;
-
-#[macro_use]
-extern crate lazy_static;
-
 use std::io::{self, prelude::*};
 
-mod internal_store;
-mod parser;
-mod values;
-// TODO: delete file
-//mod vector_store;
-mod vm;
-mod zero;
+use longleaf_lib::{
+    parser::{self, ReplInput},
+    timed,
+    vm::VM,
+};
 
-#[macro_use]
-mod macros;
-
-use parser::ReplInput;
-use vm::VM;
-
-pub const MEMORY_CAPACITY: usize = 1 << 32; // 4 GB
+const MEMORY_CAPACITY: usize = 1 << 32; // 4 GB
 
 fn main() {
     rayon::ThreadPoolBuilder::new()
@@ -33,7 +19,7 @@ fn main() {
     println!("Welcome to the longleaf REPL. For help, type 'help'.");
     print!("> ");
 
-    let mut vm = VM::new();
+    let mut vm = VM::new(MEMORY_CAPACITY);
 
     let _ = io::stdout().flush();
 

@@ -12,7 +12,6 @@ mod builtins;
 use builtins::Operation;
 
 use crate::values::{Args, LongleafValue};
-use crate::MEMORY_CAPACITY;
 
 // TODO: this is not a great way to manage this; if we forget to add stuff to this
 // set, then you can have weird things (e.g. setting "true" to a value, which is
@@ -58,10 +57,10 @@ pub struct VM {
 }
 
 impl VM {
-    pub fn new() -> Self {
+    pub fn new(memory_capacity: usize) -> Self {
         VM {
             variable_definitions: Namespace::new(),
-            arena: VectorStore::new(MEMORY_CAPACITY),
+            arena: VectorStore::new(memory_capacity),
         }
     }
 
