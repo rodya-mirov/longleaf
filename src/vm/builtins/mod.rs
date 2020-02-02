@@ -1,20 +1,23 @@
+#![allow(clippy::float_cmp)] // Just to allow the user to do == and !=
+
 use std::convert::TryFrom;
 use std::ops::{Add as _, Div as _, Mul as _, Neg as _, Sub as _};
 
 use crate::parser::{BinaryOp, UnaryOp};
-use crate::vm::PAR_CHUNK_LEN;
 
 use super::{EvalError, LongleafValue, VectorStore, VmResult};
 
 #[macro_use]
 mod builtins_macros;
 
+mod list_builtins;
 mod range;
 
 pub trait Operation {
     fn num_args(&self) -> usize;
     fn name(&self) -> &'static str;
-    fn process(&self, args: Vec<LongleafValue>, store: &VectorStore) -> VmResult<LongleafValue>;
+    fn process(&self, args: Vec<LongleafValue>, store: &mut VectorStore)
+        -> VmResult<LongleafValue>;
 }
 
 impl_float_unary!(Sin, "sin", <f64>::sin);
@@ -28,6 +31,19 @@ impl_float_binary!(Plus, "+", <f64>::add);
 impl_float_binary!(Minus, "-", <f64>::sub);
 impl_float_binary!(Times, "*", <f64>::mul);
 impl_float_binary!(Divide, "/", <f64>::div);
+
+// Comparison operators; note that Cmp / PartialCmp is not as forgiving with referencing / dereferencing
+// as addition, etc. so we need both forms of the functions
+impl_float_binary!(Geq, ">=", |a: f64, b: &f64| { a >= *b }, |a, b| { a >= b });
+impl_float_binary!(Gt, ">", |a: f64, b: &f64| { a > *b }, |a, b| { a > b });
+impl_float_binary!(Leq, "<=", |a: f64, b: &f64| { a <= *b }, |a, b| { a <= b });
+impl_float_binary!(Lt, "<", |a: f64, b: &f64| { a < *b }, |a, b| { a < b });
+impl_float_binary!(Equals, "==", |a: f64, b: &f64| { a == *b }, |a, b| {
+    a == b
+});
+impl_float_binary!(NotEquals, "!=", |a: f64, b: &f64| { a != *b }, |a, b| {
+    a != b
+});
 
 fn get_only_arg(name: &str, mut args: Vec<LongleafValue>) -> VmResult<LongleafValue> {
     if args.len() != 1 {
@@ -91,7 +107,13 @@ impl<'a> TryFrom<&'a str> for DynOp {
             "tan" => Ok(Box::new(Tan)),
             "exp" => Ok(Box::new(Exp)),
             "ln" => Ok(Box::new(Ln)),
+
             "range" => Ok(Box::new(range::Range)),
+
+            "length" => Ok(Box::new(list_builtins::Length)),
+            "sum" => Ok(Box::new(list_builtins::Sum)),
+            "dot" => Ok(Box::new(list_builtins::Dot)),
+
             _ => Err(()),
         }
     }
@@ -112,6 +134,12 @@ impl From<BinaryOp> for DynOp {
             BinaryOp::Minus => Box::new(Minus),
             BinaryOp::Divide => Box::new(Divide),
             BinaryOp::Times => Box::new(Times),
+            BinaryOp::Geq => Box::new(Geq),
+            BinaryOp::Gt => Box::new(Gt),
+            BinaryOp::Leq => Box::new(Leq),
+            BinaryOp::Lt => Box::new(Lt),
+            BinaryOp::Equals => Box::new(Equals),
+            BinaryOp::NotEquals => Box::new(NotEquals),
         }
     }
 }

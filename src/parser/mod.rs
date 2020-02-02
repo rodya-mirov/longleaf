@@ -44,6 +44,8 @@ pub enum ExprNode {
     VariableRef(String),
     Float(f64),
     FloatList(Vec<f64>),
+    Bool(bool),          // TODO: unit test parser producing these
+    BoolList(Vec<bool>), // TODO: Unit test parser producing these
     FunctionCall(String, Vec<ExprNode>),
     UnaryExpr(UnaryOp, Box<ExprNode>),
     BinaryExpr(BinaryOp, Box<ExprNode>, Box<ExprNode>),
@@ -60,6 +62,13 @@ pub enum BinaryOp {
     Minus,
     Times,
     Divide,
+    // TODO: abbreviations too enigmatic?
+    Geq,
+    Gt,
+    Leq,
+    Lt,
+    Equals,
+    NotEquals,
 }
 
 pub fn parse_repl_input(input: &str) -> ParseResult<ReplInput> {
@@ -151,7 +160,27 @@ fn compile_block_stmt(pair: Pair<'_, Rule>) -> BlockStmt {
 fn compile_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
     assert_eq!(parsed.as_rule(), Rule::expr);
 
-    compile_add_expr_node(only_child(parsed))
+    compile_comp_expr_node(only_child(parsed))
+}
+
+fn compile_comp_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
+    assert_eq!(parsed.as_rule(), Rule::comp_expr);
+
+    let mut pairs = parsed.into_inner();
+
+    let left = pairs.next().unwrap();
+    let left = compile_add_expr_node(left);
+
+    if let Some(op) = pairs.next() {
+        let bin_op = compile_comp_op(op);
+
+        let right = pairs.next().unwrap();
+        let right = compile_add_expr_node(right);
+
+        ExprNode::BinaryExpr(bin_op, Box::new(left), Box::new(right))
+    } else {
+        left
+    }
 }
 
 fn compile_add_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
@@ -232,13 +261,31 @@ fn compile_unary_expr_node(parsed: Pair<'_, Rule>) -> ExprNode {
     }
 }
 
+fn compile_comp_op(pair: Pair<'_, Rule>) -> BinaryOp {
+    assert_eq!(pair.as_rule(), Rule::comp_op);
+
+    let child = only_child(pair);
+
+    match child.as_rule() {
+        Rule::GEQ => BinaryOp::Geq,
+        Rule::GT => BinaryOp::Gt,
+        Rule::LEQ => BinaryOp::Leq,
+        Rule::LT => BinaryOp::Lt,
+        Rule::EQ => BinaryOp::Equals,
+        Rule::NEQ => BinaryOp::NotEquals,
+        other => panic!("Unexpected rule {:?} as comp_op", other),
+    }
+}
+
 fn compile_base_expr_node(pair: Pair<'_, Rule>) -> ExprNode {
     assert_eq!(pair.as_rule(), Rule::base_expr);
 
     let pair = only_child(pair);
 
     match pair.as_rule() {
+        Rule::bool => ExprNode::Bool(compile_bool(pair)),
         Rule::float => ExprNode::Float(compile_float(pair)),
+        Rule::bool_list => ExprNode::BoolList(compile_bool_list(pair)),
         Rule::float_list => ExprNode::FloatList(compile_float_list(pair)),
         Rule::paren_expr => compile_expr_node(only_child(pair)),
         Rule::id => ExprNode::VariableRef(compile_id(pair)),
@@ -316,10 +363,30 @@ fn compile_function_call(pair: Pair<'_, Rule>) -> ExprNode {
     ExprNode::FunctionCall(id, args)
 }
 
+fn compile_bool(pair: Pair<'_, Rule>) -> bool {
+    assert_eq!(pair.as_rule(), Rule::bool);
+
+    pair.as_str().trim().parse().unwrap()
+}
+
 fn compile_float(pair: Pair<'_, Rule>) -> f64 {
     assert_eq!(pair.as_rule(), Rule::float);
 
     pair.as_str().trim().parse().unwrap()
+}
+
+fn compile_bool_list(pair: Pair<'_, Rule>) -> Vec<bool> {
+    assert_eq!(pair.as_rule(), Rule::bool_list);
+
+    let mut out = Vec::new();
+
+    for child in pair.into_inner() {
+        out.push(compile_bool(child));
+    }
+
+    out.shrink_to_fit();
+
+    out
 }
 
 fn compile_float_list(pair: Pair<'_, Rule>) -> Vec<f64> {
@@ -330,6 +397,8 @@ fn compile_float_list(pair: Pair<'_, Rule>) -> Vec<f64> {
     for child in pair.into_inner() {
         out.push(compile_float(child));
     }
+
+    out.shrink_to_fit();
 
     out
 }

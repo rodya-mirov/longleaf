@@ -31,7 +31,11 @@ return_stmt = { "return" ~ expr ~ ";" }
 
 var_defn_stmt = { id ~ "=" ~ expr ~ ";" }
 
-expr = { add_expr }
+expr = { comp_expr }
+
+comp_expr =
+    { add_expr ~ ( comp_op ~ add_expr )?
+    }
 
 add_expr = { mul_expr ~ ( add_op ~ mul_expr )* }
 mul_expr = { unary_expr ~ ( mul_op ~ unary_expr )* }
@@ -44,7 +48,7 @@ unary_expr =
     | unary_op ~ unary_expr
     }
 
-base_expr = { paren_expr | function_call | id | float | float_list | function_definition }
+base_expr = { paren_expr | function_call | float | float_list | bool | bool_list | function_definition | id }
 
 function_definition =
     // we can have \x => x*12, or () => x*12, or (\x, \y, \z,) => x+y+z, or etc.
@@ -71,17 +75,25 @@ add_op = { PLUS | MINUS }
 mul_op = { TIMES | DIVIDE }
 unary_op = { NEG }
 
+comp_op = { GEQ | GT | LEQ | LT | EQ | NEQ }
+
 PLUS = { "+" }
 MINUS = { "-" }
 TIMES = { "*" }
 DIVIDE = { "/" }
 NEG = { "-" }
 
+GEQ = { ">=" }
+GT = { ">" }
+LEQ = { "<=" }
+LT = { "<" }
+EQ = { "==" }
+NEQ = { "!=" }
+
 id = @{ ASCII_ALPHA ~ ( ASCII_ALPHA | ASCII_DIGIT )* }
 
 float_list =
-    { "[" ~ (",")? ~ "]"
-    | "[" ~ float ~ ( "," ~ float )* ~ (",")? ~ "]"
+    { "[" ~ float ~ ( "," ~ float )* ~ (",")? ~ "]"
     }
 
 
@@ -95,17 +107,22 @@ float = @{
         )
 }
 
+// TODO: currently [] can't parse as an "untyped empty list" which it probably should?
+// could just disallow empty lists, I honestly don't see the use for them at the moment
+bool_list =
+    { "[" ~ bool ~ ( "," ~ bool )* ~ (",")? ~ "]"
+    }
+
+bool = { TRUE | FALSE }
+
+TRUE = { "true" }
+FALSE = { "false" }
+
 // helper formula; no leading zeros in ints, but 0 itself is an int
 pos_int = @
     { "0"
     | ( ASCII_NONZERO_DIGIT ) ~ ( ASCII_DIGIT )*
     }
 
-
-// Used only for unit testing
-only_expr = { SOI ~ expr ~ EOI }
-only_float_list = { SOI ~ float_list ~ EOI }
-only_float = { SOI ~ float ~ EOI }
-
-
+// Pest magic rule, this discards all whitespace when tokenizing
 WHITESPACE = _{ WHITE_SPACE }

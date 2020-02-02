@@ -3,3 +3,4 @@ fourAdds = x+x+x+x+x;
 fourUnaryMults = (((x*3)*4)*5)*5;
 fourNegations = -(-(-(-x)));
 fourSins = sin(sin(sin(sin(x))));
+s = sum(x);

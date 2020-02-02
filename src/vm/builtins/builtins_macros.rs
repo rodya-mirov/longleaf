@@ -15,7 +15,7 @@ macro_rules! impl_float_unary {
             fn process(
                 &self,
                 args: Vec<LongleafValue>,
-                store: &VectorStore,
+                store: &mut VectorStore,
             ) -> VmResult<LongleafValue> {
                 float_unary!(self.name(), args, $func, store)
             }
@@ -30,10 +30,8 @@ macro_rules! float_unary {
         let type_name = arg.type_name();
 
         match arg {
-            LongleafValue::Float(f) => Ok(LongleafValue::Float($func(f))),
-            LongleafValue::FloatList(vals) => Ok(LongleafValue::FloatList(unary_fn_vector!(
-                $func, vals, $store
-            ))),
+            LongleafValue::Float(f) => Ok($func(f).into()),
+            LongleafValue::FloatList(vals) => Ok(unary_fn_vector!($func, vals, $store)),
             _ => Err(EvalError::TypeMismatch(format!(
                 "{} expects a float-like argument; got {}",
                 $name, type_name
@@ -53,14 +51,13 @@ macro_rules! unary_fn_vector {
         let mut out = store.get_vector(a.len())?;
         assert_eq!(out.len(), a.len());
 
-        let out_slice: &mut [f64] = &mut out;
+        let out_slice: &mut [_] = &mut out;
 
         use rayon::prelude::*;
 
         out_slice
             .par_iter_mut()
             .zip(a.par_iter().copied())
-            .with_min_len(PAR_CHUNK_LEN)
             .for_each(|(o, i)| {
                 *o = func(i);
             });
@@ -71,6 +68,9 @@ macro_rules! unary_fn_vector {
 
 macro_rules! impl_float_binary {
     ($kind:ident, $name:expr, $func:expr) => {
+        impl_float_binary!($kind, $name, $func, $func);
+    };
+    ($kind:ident, $name:expr, $prim_func:expr, $ref_func:expr) => {
         #[derive(Eq, PartialEq, Copy, Clone, Debug)]
         pub struct $kind;
 
@@ -86,16 +86,16 @@ macro_rules! impl_float_binary {
             fn process(
                 &self,
                 args: Vec<LongleafValue>,
-                store: &VectorStore,
+                store: &mut VectorStore,
             ) -> VmResult<LongleafValue> {
-                float_binary!(self.name(), args, $func, store)
+                float_binary!(self.name(), args, $prim_func, $ref_func, store)
             }
         }
     };
 }
 
 macro_rules! float_binary {
-    ($name:expr, $args:expr, $func:expr, $store:expr) => {{
+    ($name:expr, $args:expr, $prim_func:expr, $ref_func:expr, $store:expr) => {{
         let (a, b) = get_two_args($name, $args)?;
 
         let type_a = a.type_name();
@@ -110,19 +110,13 @@ macro_rules! float_binary {
 
         match a {
             LongleafValue::Float(a) => match b {
-                LongleafValue::Float(b) => Ok(LongleafValue::Float($func(a, b))),
-                LongleafValue::FloatList(b) => Ok(LongleafValue::FloatList(scalar_vector!(
-                    $func, a, b, $store
-                ))),
+                LongleafValue::Float(b) => Ok($ref_func(a, b).into()),
+                LongleafValue::FloatList(b) => Ok(scalar_vector!($prim_func, a, b, $store)),
                 _ => Err(make_err()),
             },
             LongleafValue::FloatList(a) => match b {
-                LongleafValue::Float(b) => Ok(LongleafValue::FloatList(vector_scalar!(
-                    $func, a, b, $store
-                ))),
-                LongleafValue::FloatList(b) => Ok(LongleafValue::FloatList(vector_vector!(
-                    $func, a, b, $store
-                ))),
+                LongleafValue::Float(b) => Ok(vector_scalar!($ref_func, a, b, $store)),
+                LongleafValue::FloatList(b) => Ok(vector_vector!($prim_func, a, b, $store)),
                 _ => Err(make_err()),
             },
             _ => Err(make_err()),
@@ -138,14 +132,13 @@ macro_rules! scalar_vector {
         let mut out = ($store).get_vector(b.len())?;
         assert_eq!(out.len(), b.len());
 
-        let out_slice: &mut [f64] = &mut out;
+        let out_slice: &mut [_] = &mut out;
 
         use rayon::prelude::*;
 
         out_slice
             .par_iter_mut()
             .zip(b.par_iter())
-            .with_min_len(PAR_CHUNK_LEN)
             .for_each(|(o, bi)| {
                 *o = $op(a, bi);
             });
@@ -162,14 +155,13 @@ macro_rules! vector_scalar {
         let mut out = ($store).get_vector(a.len())?;
         assert_eq!(out.len(), a.len());
 
-        let out_slice: &mut [f64] = &mut out;
+        let out_slice: &mut [_] = &mut out;
 
         use rayon::prelude::*;
 
         out_slice
             .par_iter_mut()
             .zip(a.par_iter())
-            .with_min_len(PAR_CHUNK_LEN)
             .for_each(|(o, &ai)| {
                 *o = $op(ai, b);
             });
@@ -194,7 +186,7 @@ macro_rules! vector_vector {
         let mut out = ($store).get_vector(a.len())?;
         assert_eq!(out.len(), a.len());
 
-        let out_slice: &mut [f64] = &mut out;
+        let out_slice: &mut [_] = &mut out;
 
         use rayon::prelude::*;
 
@@ -202,7 +194,6 @@ macro_rules! vector_vector {
             .par_iter_mut()
             .zip(a.par_iter())
             .zip(b.par_iter())
-            .with_min_len(PAR_CHUNK_LEN)
             .for_each(|((o, &ai), bi)| {
                 *o = $op(ai, bi);
             });
