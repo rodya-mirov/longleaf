@@ -1,6 +1,6 @@
 use std::io::{self, prelude::*};
 
-use longleaf_lib::{
+use longleaf::{
     parser::{self, ReplInput},
     timed,
     vm::VM,

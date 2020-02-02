@@ -1,7 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 use rayon;
 
-use longleaf_lib::{parser, vm::VM};
+use longleaf::{parser, vm::VM};
+
+const RANGE_SETUP: &str = "x = range(0, 10000, 0.001);";
 
 fn to_stmt(line: &str) -> parser::StatementNode {
     match parser::parse_repl_input(line).unwrap() {
@@ -21,13 +23,12 @@ fn exec(lines: &[&str], size: usize) {
 
 fn setup_vm() -> VM {
     let mut vm = VM::new(1 << 32);
-    vm.evaluate_statement(to_stmt("x = range(0, 1000, 0.001);"))
-        .unwrap();
+    vm.evaluate_statement(to_stmt(RANGE_SETUP)).unwrap();
     vm
 }
 
 fn range_test(lshift: usize) {
-    exec(&["x = range(0, 1000, 0.001);"], 1 << lshift);
+    exec(&[RANGE_SETUP], 1 << lshift);
 }
 
 fn four_adds_test(vm: &mut VM) {
@@ -67,18 +68,37 @@ mod helpers {
     }
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
+fn bench_set(c: &mut Criterion, num_threads: usize) {
+    let mut group = c.benchmark_group(format!("{} threads", num_threads));
+
+    let runner = group.sample_size(20);
+
+    let make_name = |name| format!("{}_t{}", name, num_threads);
+
     rayon::ThreadPoolBuilder::new()
-        .num_threads(4)
+        .num_threads(num_threads)
         .build_global()
         .unwrap();
 
-    c.bench_function("range_mt", |b| b.iter(|| range_test(black_box(32))));
-    c.bench_function("fourAdds_mt", make_batched!(four_adds_test));
-    c.bench_function("fourNegs_mt", make_batched!(four_negs));
-    c.bench_function("fourScalarMults_mt", make_batched!(four_scalar_mults));
-    c.bench_function("fourSines_mt", make_batched!(four_sines));
-    c.bench_function("bigSum_mt", make_batched!(big_sum));
+    runner.bench_function(&make_name("range"), |b| {
+        b.iter(|| range_test(black_box(32)))
+    });
+    runner.bench_function(&make_name("four_adds"), make_batched!(four_adds_test));
+    runner.bench_function(&make_name("four_negs"), make_batched!(four_negs));
+    runner.bench_function(
+        &make_name("four_scalar_mults"),
+        make_batched!(four_scalar_mults),
+    );
+    runner.bench_function(&make_name("four_sines"), make_batched!(four_sines));
+    runner.bench_function(&make_name("big_sum"), make_batched!(big_sum));
+}
+
+fn criterion_benchmark(c: &mut Criterion) {
+    // TODO: refactor VM so we can construct the threadpool as an argument, instead of using
+    // the global thread pool
+    for num_threads in &[1] {
+        bench_set(c, *num_threads);
+    }
 }
 
 criterion_group!(benches, criterion_benchmark);

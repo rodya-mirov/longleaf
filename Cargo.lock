@@ -308,21 +308,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "longleaf-lib"
+name = "longleaf"
 version = "0.1.0"
 dependencies = [
  "criterion",
  "lazy_static",
  "pest",
  "pest_derive",
- "rayon",
-]
-
-[[package]]
-name = "longleaf-repl"
-version = "0.1.0"
-dependencies = [
- "longleaf-lib",
  "rayon",
 ]
 
