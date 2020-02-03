@@ -1,5 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
-use rayon;
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 
 use longleaf::{parser, vm::VM};
 
@@ -12,23 +11,18 @@ fn to_stmt(line: &str) -> parser::StatementNode {
     }
 }
 
-fn exec(lines: &[&str], size: usize) {
-    let mut vm = VM::new(size);
-
-    for line in lines {
-        let stmt = to_stmt(line);
-        vm.evaluate_statement(stmt).unwrap();
-    }
+fn create_vm(num_threads: usize) -> VM {
+    VM::new(1 << 32, num_threads)
 }
 
-fn setup_vm() -> VM {
-    let mut vm = VM::new(1 << 32);
+fn setup_vm(num_threads: usize) -> VM {
+    let mut vm = create_vm(num_threads);
     vm.evaluate_statement(to_stmt(RANGE_SETUP)).unwrap();
     vm
 }
 
-fn range_test(lshift: usize) {
-    exec(&[RANGE_SETUP], 1 << lshift);
+fn range_test(vm: &mut VM) {
+    vm.evaluate_statement(to_stmt(RANGE_SETUP)).unwrap();
 }
 
 fn four_adds_test(vm: &mut VM) {
@@ -56,15 +50,15 @@ fn big_sum(vm: &mut VM) {
 #[macro_use]
 mod helpers {
     macro_rules! make_batched {
-        ($call:ident) => {
+        ($call:ident, $num_threads:expr) => {{
             |b| {
                 b.iter_batched_ref(
-                    setup_vm,
+                    || setup_vm($num_threads),
                     |mut machine| $call(&mut machine),
                     BatchSize::LargeInput,
                 )
             }
-        };
+        }};
     }
 }
 
@@ -75,26 +69,36 @@ fn bench_set(c: &mut Criterion, num_threads: usize) {
 
     let make_name = |name| format!("{}_t{}", name, num_threads);
 
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(num_threads)
-        .build_global()
-        .unwrap();
-
     runner.bench_function(&make_name("range"), |b| {
-        b.iter(|| range_test(black_box(32)))
+        b.iter_batched_ref(
+            // Note "create_vm" creates it but doesn't preload it with a big vector under x;
+            // this benchmarks the creation of that vector
+            || create_vm(num_threads),
+            |mut machine| range_test(&mut machine),
+            BatchSize::LargeInput,
+        )
     });
-    runner.bench_function(&make_name("four_adds"), make_batched!(four_adds_test));
-    runner.bench_function(&make_name("four_negs"), make_batched!(four_negs));
+    runner.bench_function(
+        &make_name("four_adds"),
+        make_batched!(four_adds_test, num_threads),
+    );
+    runner.bench_function(
+        &make_name("four_negs"),
+        make_batched!(four_negs, num_threads),
+    );
     runner.bench_function(
         &make_name("four_scalar_mults"),
-        make_batched!(four_scalar_mults),
+        make_batched!(four_scalar_mults, num_threads),
     );
-    runner.bench_function(&make_name("four_sines"), make_batched!(four_sines));
-    runner.bench_function(&make_name("big_sum"), make_batched!(big_sum));
+    runner.bench_function(
+        &make_name("four_sines"),
+        make_batched!(four_sines, num_threads),
+    );
+    runner.bench_function(&make_name("big_sum"), make_batched!(big_sum, num_threads));
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    for num_threads in &[4] {
+    for num_threads in &[1, 4] {
         bench_set(c, *num_threads);
     }
 }

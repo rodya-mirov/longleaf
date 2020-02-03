@@ -21,7 +21,7 @@ impl From<Vec<bool>> for LongleafValue {
 }
 
 fn run_repl_inputs<T: Into<LongleafValue>>(input: &[&str], expected: Vec<T>) {
-    let mut vm = VM::new(1 << 32);
+    let mut vm = VM::new(1 << 32, 1);
 
     let mut actual = Vec::with_capacity(expected.len());
 

@@ -31,7 +31,3 @@ criterion = "0.3"
 [[bench]]
 name = "parallel"
 harness = false
-
-[[bench]]
-name = "single"
-harness = false

@@ -12,14 +12,10 @@ impl Operation for Range {
         "range"
     }
 
-    fn process(
-        &self,
-        args: Vec<LongleafValue>,
-        store: &mut VectorStore,
-    ) -> VmResult<LongleafValue> {
+    fn process(&self, args: Vec<LongleafValue>, ctx: &mut VMContext) -> VmResult<LongleafValue> {
         let (a, b, c) = get_three_args(self.name(), args)?;
 
-        make_range(a, b, c, store)
+        make_range(a, b, c, ctx)
     }
 }
 
@@ -27,7 +23,7 @@ fn make_range(
     start: LongleafValue,
     end: LongleafValue,
     step: LongleafValue,
-    arena: &mut VectorStore,
+    ctx: &mut VMContext,
 ) -> VmResult<LongleafValue> {
     let start = get_float_helper(start, "0 (start)")?;
     let end = get_float_helper(end, "1 (end)")?;
@@ -46,7 +42,7 @@ fn make_range(
     let len: usize = { ((end - start) / step).ceil() as usize };
 
     let mut running = start;
-    let mut out = arena.get_vector(len)?;
+    let mut out = ctx.arena.get_vector(len)?;
 
     for i in 0..len {
         out[i] = running;
@@ -71,15 +67,22 @@ fn get_float_helper(f: LongleafValue, arg_name: &str) -> VmResult<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::internal_store::VectorStore;
 
     #[test]
     fn make_range_tests() {
         fn do_range_test(start: f64, end: f64, step: f64, expected: Vec<f64>) {
-            let mut store = VectorStore::new(1 << 32);
+            let mut ctx = VMContext {
+                arena: VectorStore::new(1 << 32),
+                pool: rayon::ThreadPoolBuilder::new()
+                    .num_threads(1)
+                    .build()
+                    .unwrap(),
+            };
 
-            let actual = make_range(start.into(), end.into(), step.into(), &mut store).unwrap();
+            let actual = make_range(start.into(), end.into(), step.into(), &mut ctx).unwrap();
 
-            let expected: LongleafValue = store.track_vector(expected).into();
+            let expected: LongleafValue = ctx.arena.track_vector(expected).into();
 
             assert_eq!(actual, expected);
         }

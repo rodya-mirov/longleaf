@@ -7,19 +7,13 @@ use longleaf::{
 };
 
 const MEMORY_CAPACITY: usize = 1 << 32; // 4 GB
+const NUM_THREADS: usize = 4;
 
 fn main() {
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(4)
-        .build_global()
-        .unwrap();
-
-    println!("Initialized with {} threads", rayon::current_num_threads());
-
     println!("Welcome to the longleaf REPL. For help, type 'help'.");
     print!("> ");
 
-    let mut vm = VM::new(MEMORY_CAPACITY);
+    let mut vm = VM::new(MEMORY_CAPACITY, NUM_THREADS);
 
     let _ = io::stdout().flush();
 
