@@ -2,6 +2,8 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 use std::rc::Rc;
 
+use rayon::{ThreadPool, ThreadPoolBuilder};
+
 use crate::internal_store::{AllocationError, MemoryUsageReport, VectorStore};
 use crate::parser::{BinaryOp, BlockStmt, ExprNode, StatementNode, UnaryOp};
 
@@ -12,7 +14,6 @@ mod builtins;
 use builtins::Operation;
 
 use crate::values::{Args, LongleafValue};
-use crate::MEMORY_CAPACITY;
 
 // TODO: this is not a great way to manage this; if we forget to add stuff to this
 // set, then you can have weird things (e.g. setting "true" to a value, which is
@@ -54,23 +55,39 @@ pub enum StatementOutput {
 
 pub struct VM {
     variable_definitions: Namespace,
+    context: VMContext,
+}
+
+pub struct VMContext {
     arena: VectorStore,
+    pool: ThreadPool,
 }
 
 impl VM {
-    pub fn new() -> Self {
+    pub fn new(memory_capacity: usize, num_threads: usize) -> Self {
+        let pool = ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build()
+            .expect("Should be able to build thread pool");
+        Self::create(memory_capacity, pool)
+    }
+
+    pub fn create(memory_capacity: usize, pool: ThreadPool) -> Self {
         VM {
             variable_definitions: Namespace::new(),
-            arena: VectorStore::new(MEMORY_CAPACITY),
+            context: VMContext {
+                arena: VectorStore::new(memory_capacity),
+                pool,
+            },
         }
     }
 
     pub fn get_memory_usage(&self) -> MemoryUsageReport {
-        self.arena.get_memory_usage()
+        self.context.arena.get_memory_usage()
     }
 
     pub fn garbage_collect(&mut self) {
-        self.arena.garbage_collect();
+        self.context.arena.garbage_collect();
     }
 
     pub fn evaluate_statement(&mut self, stmt: StatementNode) -> VmResult<StatementOutput> {
@@ -108,10 +125,10 @@ impl VM {
             ExprNode::Bool(b) => LongleafValue::Bool(b),
             ExprNode::Float(f) => LongleafValue::Float(f),
             ExprNode::BoolList(vals) => {
-                LongleafValue::BoolList(Rc::new(self.arena.track_vector(vals)))
+                LongleafValue::BoolList(Rc::new(self.context.arena.track_vector(vals)))
             }
             ExprNode::FloatList(vals) => {
-                LongleafValue::FloatList(Rc::new(self.arena.track_vector(vals)))
+                LongleafValue::FloatList(Rc::new(self.context.arena.track_vector(vals)))
             }
             ExprNode::FunctionCall(name, args) => self.eval_function_call(name, args)?,
             ExprNode::UnaryExpr(op, val) => self.eval_unary_expr(op, *val)?,
@@ -172,7 +189,7 @@ impl VM {
                 results.push(self.evaluate_expr(arg)?);
             }
 
-            return op.process(results, &mut self.arena);
+            return op.process(results, &mut self.context);
         }
 
         let num_args: usize = match self.variable_definitions.lookup_variable(name_str) {
@@ -255,7 +272,7 @@ impl VM {
         // TODO: this extra vec allocation is gross but fixing it
         // is such a non-issue that I can't afford the extra LoC for it
         // right now
-        op.process(vec![inner], &mut self.arena)
+        op.process(vec![inner], &mut self.context)
     }
 
     #[allow(clippy::cognitive_complexity)] // False positive from macro expansions
@@ -269,7 +286,7 @@ impl VM {
         let b: LongleafValue = self.evaluate_expr(b)?;
 
         let op: Box<dyn Operation> = op.into();
-        op.process(vec![a, b], &mut self.arena)
+        op.process(vec![a, b], &mut self.context)
     }
 }
 

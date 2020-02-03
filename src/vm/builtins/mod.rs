@@ -5,7 +5,7 @@ use std::ops::{Add as _, Div as _, Mul as _, Neg as _, Sub as _};
 
 use crate::parser::{BinaryOp, UnaryOp};
 
-use super::{EvalError, LongleafValue, VectorStore, VmResult};
+use super::{EvalError, LongleafValue, VMContext, VmResult};
 
 #[macro_use]
 mod builtins_macros;
@@ -16,8 +16,7 @@ mod range;
 pub trait Operation {
     fn num_args(&self) -> usize;
     fn name(&self) -> &'static str;
-    fn process(&self, args: Vec<LongleafValue>, store: &mut VectorStore)
-        -> VmResult<LongleafValue>;
+    fn process(&self, args: Vec<LongleafValue>, ctx: &mut VMContext) -> VmResult<LongleafValue>;
 }
 
 impl_float_unary!(Sin, "sin", <f64>::sin);

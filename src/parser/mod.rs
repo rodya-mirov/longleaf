@@ -44,8 +44,8 @@ pub enum ExprNode {
     VariableRef(String),
     Float(f64),
     FloatList(Vec<f64>),
-    Bool(bool),          // TODO: unit test parser producing these
-    BoolList(Vec<bool>), // TODO: Unit test parser producing these
+    Bool(bool),
+    BoolList(Vec<bool>),
     FunctionCall(String, Vec<ExprNode>),
     UnaryExpr(UnaryOp, Box<ExprNode>),
     BinaryExpr(BinaryOp, Box<ExprNode>, Box<ExprNode>),

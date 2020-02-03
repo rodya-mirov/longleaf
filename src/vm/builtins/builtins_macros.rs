@@ -15,23 +15,23 @@ macro_rules! impl_float_unary {
             fn process(
                 &self,
                 args: Vec<LongleafValue>,
-                store: &mut VectorStore,
+                ctx: &mut VMContext,
             ) -> VmResult<LongleafValue> {
-                float_unary!(self.name(), args, $func, store)
+                float_unary!(self.name(), args, $func, ctx)
             }
         }
     };
 }
 
 macro_rules! float_unary {
-    ($name:expr, $args:expr, $func:expr, $store:expr) => {{
+    ($name:expr, $args:expr, $func:expr, $ctx:expr) => {{
         let arg = get_only_arg($name, $args)?;
 
         let type_name = arg.type_name();
 
         match arg {
             LongleafValue::Float(f) => Ok($func(f).into()),
-            LongleafValue::FloatList(vals) => Ok(unary_fn_vector!($func, vals, $store)),
+            LongleafValue::FloatList(vals) => Ok(unary_fn_vector!($func, vals, $ctx)),
             _ => Err(EvalError::TypeMismatch(format!(
                 "{} expects a float-like argument; got {}",
                 $name, type_name
@@ -41,26 +41,28 @@ macro_rules! float_unary {
 }
 
 macro_rules! unary_fn_vector {
-    ($func:expr, $a:expr, $store:expr) => {{
+    ($func:expr, $a:expr, $ctx:expr) => {{
         let a: &[f64] = &*$a;
 
         let func = $func;
 
-        let store = $store;
+        let ctx = $ctx;
 
-        let mut out = store.get_vector(a.len())?;
+        let mut out = ctx.arena.get_vector(a.len())?;
         assert_eq!(out.len(), a.len());
 
         let out_slice: &mut [_] = &mut out;
 
         use rayon::prelude::*;
 
-        out_slice
-            .par_iter_mut()
-            .zip(a.par_iter().copied())
-            .for_each(|(o, i)| {
-                *o = func(i);
-            });
+        ctx.pool.install(|| {
+            out_slice
+                .par_iter_mut()
+                .zip(a.par_iter().copied())
+                .for_each(|(o, i)| {
+                    *o = func(i);
+                })
+        });
 
         out.into()
     }};
@@ -86,16 +88,16 @@ macro_rules! impl_float_binary {
             fn process(
                 &self,
                 args: Vec<LongleafValue>,
-                store: &mut VectorStore,
+                ctx: &mut VMContext,
             ) -> VmResult<LongleafValue> {
-                float_binary!(self.name(), args, $prim_func, $ref_func, store)
+                float_binary!(self.name(), args, $prim_func, $ref_func, ctx)
             }
         }
     };
 }
 
 macro_rules! float_binary {
-    ($name:expr, $args:expr, $prim_func:expr, $ref_func:expr, $store:expr) => {{
+    ($name:expr, $args:expr, $prim_func:expr, $ref_func:expr, $ctx:expr) => {{
         let (a, b) = get_two_args($name, $args)?;
 
         let type_a = a.type_name();
@@ -111,12 +113,12 @@ macro_rules! float_binary {
         match a {
             LongleafValue::Float(a) => match b {
                 LongleafValue::Float(b) => Ok($ref_func(a, b).into()),
-                LongleafValue::FloatList(b) => Ok(scalar_vector!($prim_func, a, b, $store)),
+                LongleafValue::FloatList(b) => Ok(scalar_vector!($prim_func, a, b, $ctx)),
                 _ => Err(make_err()),
             },
             LongleafValue::FloatList(a) => match b {
-                LongleafValue::Float(b) => Ok(vector_scalar!($ref_func, a, b, $store)),
-                LongleafValue::FloatList(b) => Ok(vector_vector!($prim_func, a, b, $store)),
+                LongleafValue::Float(b) => Ok(vector_scalar!($ref_func, a, b, $ctx)),
+                LongleafValue::FloatList(b) => Ok(vector_vector!($prim_func, a, b, $ctx)),
                 _ => Err(make_err()),
             },
             _ => Err(make_err()),
@@ -125,53 +127,61 @@ macro_rules! float_binary {
 }
 
 macro_rules! scalar_vector {
-    ($op:expr, $a:expr, $b:expr, $store:expr) => {{
+    ($op:expr, $a:expr, $b:expr, $ctx:expr) => {{
         let a: f64 = $a;
         let b: &[f64] = &*$b;
 
-        let mut out = ($store).get_vector(b.len())?;
+        let ctx = $ctx;
+
+        let mut out = ctx.arena.get_vector(b.len())?;
         assert_eq!(out.len(), b.len());
 
         let out_slice: &mut [_] = &mut out;
 
         use rayon::prelude::*;
 
-        out_slice
-            .par_iter_mut()
-            .zip(b.par_iter())
-            .for_each(|(o, bi)| {
-                *o = $op(a, bi);
-            });
+        ctx.pool.install(|| {
+            out_slice
+                .par_iter_mut()
+                .zip(b.par_iter())
+                .for_each(|(o, bi)| {
+                    *o = $op(a, bi);
+                })
+        });
 
         out.into()
     }};
 }
 
 macro_rules! vector_scalar {
-    ($op:tt, $a:expr, $b:expr, $store:expr) => {{
+    ($op:tt, $a:expr, $b:expr, $ctx:expr) => {{
         let a: &[f64] = &*$a;
         let b: f64 = $b;
 
-        let mut out = ($store).get_vector(a.len())?;
+        let ctx = $ctx;
+
+        let mut out = ctx.arena.get_vector(a.len())?;
         assert_eq!(out.len(), a.len());
 
         let out_slice: &mut [_] = &mut out;
 
         use rayon::prelude::*;
 
-        out_slice
-            .par_iter_mut()
-            .zip(a.par_iter())
-            .for_each(|(o, &ai)| {
-                *o = $op(ai, b);
-            });
+        ctx.pool.install(|| {
+            out_slice
+                .par_iter_mut()
+                .zip(a.par_iter())
+                .for_each(|(o, &ai)| {
+                    *o = $op(ai, b);
+                })
+        });
 
         out.into()
     }};
 }
 
 macro_rules! vector_vector {
-    ($op:tt, $a:expr, $b:expr, $store:expr) => {{
+    ($op:tt, $a:expr, $b:expr, $ctx:expr) => {{
         let a: &[f64] = &*$a;
         let b: &[f64] = &*$b;
 
@@ -183,20 +193,24 @@ macro_rules! vector_vector {
             )));
         }
 
-        let mut out = ($store).get_vector(a.len())?;
+        let ctx = $ctx;
+
+        let mut out = ctx.arena.get_vector(a.len())?;
         assert_eq!(out.len(), a.len());
 
         let out_slice: &mut [_] = &mut out;
 
         use rayon::prelude::*;
 
-        out_slice
-            .par_iter_mut()
-            .zip(a.par_iter())
-            .zip(b.par_iter())
-            .for_each(|((o, &ai), bi)| {
-                *o = $op(ai, bi);
-            });
+        ctx.pool.install(|| {
+            out_slice
+                .par_iter_mut()
+                .zip(a.par_iter())
+                .zip(b.par_iter())
+                .for_each(|((o, &ai), bi)| {
+                    *o = $op(ai, bi);
+                })
+        });
 
         out.into()
     }};

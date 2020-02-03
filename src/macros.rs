@@ -1,3 +1,4 @@
+#[macro_export]
 macro_rules! timed {
     ($to_eval:expr) => {{
         #[cfg(feature = "timing")]

@@ -14,11 +14,7 @@ impl Operation for Length {
         "length"
     }
 
-    fn process(
-        &self,
-        args: Vec<LongleafValue>,
-        _store: &mut VectorStore,
-    ) -> VmResult<LongleafValue> {
+    fn process(&self, args: Vec<LongleafValue>, _ctx: &mut VMContext) -> VmResult<LongleafValue> {
         let list = get_only_arg(self.name(), args)?;
         let type_name = list.type_name();
 
@@ -51,18 +47,14 @@ impl Operation for Sum {
         "sum"
     }
 
-    fn process(
-        &self,
-        args: Vec<LongleafValue>,
-        _store: &mut VectorStore,
-    ) -> VmResult<LongleafValue> {
+    fn process(&self, args: Vec<LongleafValue>, ctx: &mut VMContext) -> VmResult<LongleafValue> {
         let list = get_only_arg(self.name(), args)?;
         let type_name = list.type_name();
 
         match list {
             LongleafValue::FloatList(vals) => {
                 let vals_slice: &[f64] = &**vals;
-                let sum: f64 = vals_slice.into_par_iter().sum();
+                let sum: f64 = ctx.pool.install(|| vals_slice.into_par_iter().sum());
                 Ok(LongleafValue::Float(sum))
             }
             _ => Err(EvalError::TypeMismatch(format!(
@@ -85,11 +77,7 @@ impl Operation for Dot {
         "dot"
     }
 
-    fn process(
-        &self,
-        args: Vec<LongleafValue>,
-        _store: &mut VectorStore,
-    ) -> VmResult<LongleafValue> {
+    fn process(&self, args: Vec<LongleafValue>, ctx: &mut VMContext) -> VmResult<LongleafValue> {
         let (a, b) = get_two_args(self.name(), args)?;
 
         let type_name_a = a.type_name();
@@ -119,11 +107,13 @@ impl Operation for Dot {
                         )));
                     }
 
-                    let dot_product: f64 = a_slice
-                        .into_par_iter()
-                        .zip(b_slice)
-                        .map(|(a, b)| a * b)
-                        .sum();
+                    let dot_product: f64 = ctx.pool.install(|| {
+                        a_slice
+                            .into_par_iter()
+                            .zip(b_slice)
+                            .map(|(a, b)| a * b)
+                            .sum()
+                    });
 
                     Ok(LongleafValue::Float(dot_product))
                 }
