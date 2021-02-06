@@ -1,33 +1,15 @@
-[package]
-name = "longleaf"
-version = "0.1.0"
-authors = ["Richard Rast <richard.rast@gmail.com>"]
-edition = "2018"
+[workspace]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-name = "longleaf"
-path = "src/lib.rs"
-
-[[bin]]
-name = "repl"
-path = "bin/repl.rs"
-
-[dependencies]
-pest = "2.1.2"
-pest_derive = "2.1.0"
-lazy_static = "1.4.0"
-rayon = "1.3.0"
-
-[features]
-default = []
-
-timing = []
-
-[dev-dependencies]
-criterion = "0.3"
-
-[[bench]]
-name = "parallel"
-harness = false
+members = [
+    # lib; contains AST definitions used by multiple crates
+    "lang",
+    # lib; exposes a small number of functions to turn text into AST elements
+    "parser",
+    # lib; exposes an allocator for vector / matrix / tensor objects with basic functionality on them
+    "engine",
+    # lib; keeps track of variables and contains logic to execute code
+    # try not to make this a huge monolith
+    "vm",
+    # bin; simple Read Eval Print Loop using the preceding crates
+    "repl"
+]
