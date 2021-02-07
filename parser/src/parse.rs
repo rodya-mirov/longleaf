@@ -20,7 +20,6 @@ use nom::sequence::tuple;
 #[cfg(test)]
 mod tests;
 
-#[allow(unused)]
 pub(crate) fn parse_statement(s: Span) -> IResult<Span, cst::StmtNode> {
     alt((
         parse_assign_stmt.map(|v| cst::StmtNode::Assign(v)),

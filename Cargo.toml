@@ -5,6 +5,8 @@ members = [
     "lang",
     # lib; exposes a small number of functions to turn text into AST elements
     "parser",
+    # lib; exposes a small number of functions to turn AST elements into bytecode
+    "compiler",
     # lib; exposes an allocator for vector / matrix / tensor objects with basic functionality on them
     "engine",
     # lib; keeps track of variables and contains logic to execute code
