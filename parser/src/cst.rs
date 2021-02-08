@@ -4,6 +4,7 @@ use crate::Span;
 pub enum StmtNode<'a> {
     Assign(AssignStmt<'a>),
     Expr(ExprStmt<'a>),
+    Print(PrintStmt<'a>),
 }
 
 #[derive(PartialEq, Debug)]
@@ -15,6 +16,12 @@ pub struct AssignStmt<'a> {
 
 #[derive(PartialEq, Debug)]
 pub struct ExprStmt<'a> {
+    pub position: Span<'a>,
+    pub expr: ExprNode<'a>,
+}
+
+#[derive(PartialEq, Debug)]
+pub struct PrintStmt<'a> {
     pub position: Span<'a>,
     pub expr: ExprNode<'a>,
 }

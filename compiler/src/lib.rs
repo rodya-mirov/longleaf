@@ -1,7 +1,7 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+pub mod chunk;
+pub mod debug;
+pub mod ops;
+
+// TODO: this probably shouldn't live here but we'll leave it alone for now
+// Enumeration of all possible values of a longleaf object
+pub type Value = f64;

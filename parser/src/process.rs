@@ -7,6 +7,7 @@ impl<'a> From<cst::StmtNode<'a>> for ast::StmtNode {
         match stmt {
             cst::StmtNode::Assign(assign) => ast::StmtNode::Assign(ast::AssignStmt::from(assign)),
             cst::StmtNode::Expr(expr) => ast::StmtNode::Expr(ast::ExprStmt::from(expr)),
+            cst::StmtNode::Print(p) => ast::StmtNode::Print(ast::PrintStmt::from(p)),
         }
     }
 }
@@ -23,6 +24,14 @@ impl<'a> From<cst::AssignStmt<'a>> for ast::AssignStmt {
 impl<'a> From<cst::ExprStmt<'a>> for ast::ExprStmt {
     fn from(expr_stmt: cst::ExprStmt) -> Self {
         ast::ExprStmt {
+            expr: ast::ExprNode::from(expr_stmt.expr),
+        }
+    }
+}
+
+impl<'a> From<cst::PrintStmt<'a>> for ast::PrintStmt {
+    fn from(expr_stmt: cst::PrintStmt) -> Self {
+        ast::PrintStmt {
             expr: ast::ExprNode::from(expr_stmt.expr),
         }
     }

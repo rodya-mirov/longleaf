@@ -48,6 +48,9 @@ checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 [[package]]
 name = "compiler"
 version = "0.1.0"
+dependencies = [
+ "lang",
+]
 
 [[package]]
 name = "engine"
@@ -185,6 +188,10 @@ checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
 [[package]]
 name = "vm"
 version = "0.1.0"
+dependencies = [
+ "compiler",
+ "lang",
+]
 
 [[package]]
 name = "wyz"

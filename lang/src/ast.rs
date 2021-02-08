@@ -2,6 +2,7 @@
 pub enum StmtNode {
     Assign(AssignStmt),
     Expr(ExprStmt),
+    Print(PrintStmt),
 }
 
 #[derive(PartialEq, Debug)]
@@ -12,6 +13,11 @@ pub struct AssignStmt {
 
 #[derive(PartialEq, Debug)]
 pub struct ExprStmt {
+    pub expr: ExprNode,
+}
+
+#[derive(PartialEq, Debug)]
+pub struct PrintStmt {
     pub expr: ExprNode,
 }
 

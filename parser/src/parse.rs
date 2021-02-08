@@ -23,6 +23,7 @@ mod tests;
 pub(crate) fn parse_statement(s: Span) -> IResult<Span, cst::StmtNode> {
     alt((
         parse_assign_stmt.map(|v| cst::StmtNode::Assign(v)),
+        parse_print_stmt.map(|v| cst::StmtNode::Print(v)),
         parse_expr_stmt.map(|v| cst::StmtNode::Expr(v)),
     ))(s)
 }
@@ -47,6 +48,30 @@ fn parse_expr_stmt(s: Span) -> IResult<Span, cst::ExprStmt> {
             expr,
         },
     ))
+}
+
+fn parse_print_stmt(s: Span) -> IResult<Span, cst::PrintStmt> {
+    // this "skip optional whitespace" thing is super tedious
+    let (s, pos) = position(s)?;
+
+    let (s, _) = multispace0(s)?;
+    let (s, _) = parse_print(s)?;
+    let (s, _) = multispace1(s)?;
+    let (s, expr) = parse_expr(s)?;
+    let (s, _) = multispace0(s)?;
+    let (s, _) = parse_semi(s)?;
+
+    Ok((
+        s,
+        cst::PrintStmt {
+            position: pos,
+            expr,
+        },
+    ))
+}
+
+fn parse_print(s: Span) -> IResult<Span, Span> {
+    tag("print")(s)
 }
 
 fn parse_assign_stmt(s: Span) -> IResult<Span, cst::AssignStmt> {
