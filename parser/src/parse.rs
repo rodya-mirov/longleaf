@@ -22,8 +22,8 @@ mod tests;
 
 pub(crate) fn parse_statement(s: Span) -> IResult<Span, cst::StmtNode> {
     alt((
-        parse_assign_stmt.map(|v| cst::StmtNode::Assign(v)),
         parse_print_stmt.map(|v| cst::StmtNode::Print(v)),
+        parse_assign_stmt.map(|v| cst::StmtNode::Assign(v)),
         parse_expr_stmt.map(|v| cst::StmtNode::Expr(v)),
     ))(s)
 }
@@ -160,7 +160,10 @@ where
                 Ok((span, op))
             })
         } else {
-            Box::new(|span| op_parser(span))
+            Box::new(|span| {
+                let (span, (_, op)) = tuple((multispace0, &mut op_parser))(span)?;
+                Ok((span, op))
+            })
         };
 
     while let Ok((next_s, op)) = spaced_op_parser(s) {

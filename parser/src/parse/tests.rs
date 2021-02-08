@@ -1,10 +1,19 @@
+use lang::ast;
+
 use super::*;
 
 // Helper so you can use ? which helps the parsers work correctly
 // Just make your test be `res_test(|| { your actual code with ? and stuff; ok() })`
 fn res_test<'a, T: FnOnce() -> IResult<Span<'a>, ()>>(f: T) {
     let res = f();
-    assert!(res.is_ok());
+    match res {
+        Ok(_) => {},
+        Err(e) => {
+            println!("Error parsing node: {:?}", e);
+            assert!(false);
+            unreachable!();
+        }
+    }
 }
 
 fn ok<'a>() -> IResult<Span<'a>, ()> {
@@ -17,6 +26,264 @@ fn ok<'a>() -> IResult<Span<'a>, ()> {
 /// Don't use this span for anything!
 fn def_span<'a>(offset: usize, line: u32) -> Span<'a> {
     unsafe { Span::new_from_raw_offset(offset, line, "", ()) }
+}
+
+#[inline]
+fn ast_num(num: f64) -> Box<ast::ExprNode> {
+    Box::new(ast::ExprNode::Number(ast::NumberNode { val: num }))
+}
+
+#[inline]
+fn neg(node: Box<ast::ExprNode>) -> Box<ast::ExprNode> {
+    Box::new(ast::ExprNode::Unary(ast::UnaryExprNode { op: ast::UnaryOp::Neg, arg: node}))
+}
+
+#[test]
+fn parse_expr_tests_num_0() {
+    res_test(|| {
+        let s = Span::new("1");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Number(ast::NumberNode { val: 1. });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_num_1() {
+    res_test(|| {
+        let s = Span::new("1.34");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Number(ast::NumberNode { val: 1.34 });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_num_2() {
+    res_test(|| {
+        let s = Span::new("1e7");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Number(ast::NumberNode { val: 1e7 });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_neg() {
+    res_test(|| {
+        let s = Span::new("---3");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Unary(ast::UnaryExprNode {
+            op: ast::UnaryOp::Neg,
+            arg: Box::new(ast::ExprNode::Unary(ast::UnaryExprNode {
+                op: ast::UnaryOp::Neg,
+                arg: Box::new(ast::ExprNode::Unary(ast::UnaryExprNode {
+                    op: ast::UnaryOp::Neg,
+                    arg: ast_num(3.),
+                })),
+            })),
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_bin_1() {
+    res_test(|| {
+        let s = Span::new("1+2");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
+            op: ast::BinaryOp::Plus,
+            left: ast_num(1.),
+            right: ast_num(2.)
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_bin_2() {
+    res_test(|| {
+        let s = Span::new("1-2");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
+            op: ast::BinaryOp::Minus,
+            left: ast_num(1.),
+            right: ast_num(2.)
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_bin_3() {
+    res_test(|| {
+        let s = Span::new("1*2");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
+            op: ast::BinaryOp::Times,
+            left: ast_num(1.),
+            right: ast_num(2.)
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_bin_4() {
+    res_test(|| {
+        let s = Span::new("1/2");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
+            op: ast::BinaryOp::Divide,
+            left: ast_num(1.),
+            right: ast_num(2.)
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_bin_5() {
+    res_test(|| {
+        let s = Span::new("1 / 2");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
+            op: ast::BinaryOp::Divide,
+            left: ast_num(1.),
+            right: ast_num(2.)
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_bin_6() {
+    res_test(|| {
+        let s = Span::new("1/ 2");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
+            op: ast::BinaryOp::Divide,
+            left: ast_num(1.),
+            right: ast_num(2.)
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_bin_7() {
+    res_test(|| {
+        let s = Span::new("1 /2");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
+            op: ast::BinaryOp::Divide,
+            left: ast_num(1.),
+            right: ast_num(2.)
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_paren() {
+    res_test(|| {
+        let s = Span::new("1/(2+-3)");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
+            op: ast::BinaryOp::Divide,
+            left: ast_num(1.),
+            right: Box::new(ast::ExprNode::Binary(ast::BinaryExprNode {
+                op: ast::BinaryOp::Plus,
+                left: ast_num(2.),
+                right: neg(ast_num(3.))
+            }))
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_expr_tests_paren_2() {
+    res_test(|| {
+        let s = Span::new("12/(1.2 + -3)");
+
+        let (_s, actual) = parse_expr(s)?;
+
+        let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
+            op: ast::BinaryOp::Divide,
+            left: ast_num(12.),
+            right: Box::new(ast::ExprNode::Binary(ast::BinaryExprNode {
+                op: ast::BinaryOp::Plus,
+                left: ast_num(1.2),
+                right: neg(ast_num(3.)),
+            }))
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
 }
 
 #[test]

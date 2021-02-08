@@ -16,7 +16,7 @@ pub fn disassemble_chunk<W: Write>(chunk: &Chunk, name: &str, w: &mut W) -> IoRe
     Ok(())
 }
 
-fn disassemble_instr<W: Write>(chunk: &Chunk, offset: usize, w: &mut W) -> IoResult<usize> {
+pub fn disassemble_instr<W: Write>(chunk: &Chunk, offset: usize, w: &mut W) -> IoResult<usize> {
     write!(w, "{:04} ", offset)?;
 
     let line = chunk.lines[offset];
@@ -29,6 +29,13 @@ fn disassemble_instr<W: Write>(chunk: &Chunk, offset: usize, w: &mut W) -> IoRes
     match OpCode::try_from(chunk.code[offset]) {
         Ok(OpCode::OP_RETURN) => simple_instruction("OP_RETURN", offset, w),
         Ok(OpCode::OP_CONSTANT) => constant_instruction(chunk, "OP_CONSTANT", offset, w),
+        Ok(OpCode::OP_NEGATE) => simple_instruction("OP_NEGATE", offset, w),
+        Ok(OpCode::OP_ADD) => simple_instruction("OP_NEGATE", offset, w),
+        Ok(OpCode::OP_SUBTRACT) => simple_instruction("OP_NEGATE", offset, w),
+        Ok(OpCode::OP_MULTIPLY) => simple_instruction("OP_NEGATE", offset, w),
+        Ok(OpCode::OP_DIVIDE) => simple_instruction("OP_NEGATE", offset, w),
+        Ok(OpCode::OP_PRINT) => simple_instruction("OP_PRINT", offset, w),
+        Ok(OpCode::OP_POP) => simple_instruction("OP_POP", offset, w),
         Err(unknown_code) => {
             write!(w, "Unknown opcode {}\n", unknown_code)?;
             Ok(offset + 1)

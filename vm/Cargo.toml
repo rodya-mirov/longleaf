@@ -4,9 +4,13 @@ version = "0.1.0"
 authors = ["Richard Rast <richard.rast@gmail.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+# If enabled, makes a truly alarming amount of debug output while the VM is running
+verbose = []
 
 [dependencies]
 lang = { path = "../lang" }
 # TODO: probably makes sense to move the OpCode + Chunk definitions to lang, so we don't have to depend on the compiler to run code
 compiler = { path = "../compiler" }
+# TODO: need this for the integration tests but not for the actual code?
+parser = { path = "../parser" }

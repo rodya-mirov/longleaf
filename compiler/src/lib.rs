@@ -1,4 +1,5 @@
 pub mod chunk;
+pub mod compile;
 pub mod debug;
 pub mod ops;
 

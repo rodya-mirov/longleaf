@@ -7,6 +7,15 @@ use std::convert::TryFrom;
 pub enum OpCode {
     OP_RETURN = 0,
     OP_CONSTANT = 1,
+    // numerical negation
+    OP_NEGATE = 2,
+    OP_ADD = 3,
+    OP_SUBTRACT = 4,
+    OP_MULTIPLY = 5,
+    OP_DIVIDE = 6,
+    OP_PRINT = 7,
+    // just pop something off the stack, whatever
+    OP_POP = 8,
 }
 
 impl TryFrom<u8> for OpCode {
@@ -17,6 +26,13 @@ impl TryFrom<u8> for OpCode {
         match value {
             0 => Ok(OpCode::OP_RETURN),
             1 => Ok(OpCode::OP_CONSTANT),
+            2 => Ok(OpCode::OP_NEGATE),
+            3 => Ok(OpCode::OP_ADD),
+            4 => Ok(OpCode::OP_SUBTRACT),
+            5 => Ok(OpCode::OP_MULTIPLY),
+            6 => Ok(OpCode::OP_DIVIDE),
+            7 => Ok(OpCode::OP_PRINT),
+            8 => Ok(OpCode::OP_POP),
             _ => Err(value),
         }
     }
