@@ -7,15 +7,16 @@ use nom::{
     combinator::recognize,
     multi::many0,
     number::complete::recognize_float,
-    sequence::pair,
+    sequence::{pair, tuple},
     IResult, Parser,
 };
 
 use nom_locate::position;
 
-use crate::cst::UnaryOpNode;
+use crate::cst::{BinaryOp, UnaryOpNode};
 use crate::{cst, Span};
-use nom::sequence::tuple;
+
+type ParseError<'a> = nom::error::Error<Span<'a>>;
 
 #[cfg(test)]
 mod tests;
@@ -103,7 +104,7 @@ fn parse_let(s: Span) -> IResult<Span, Span> {
     tag("let")(s)
 }
 
-fn parse_id(s: Span) -> IResult<Span, cst::IdRef> {
+fn parse_id(s: Span) -> IResult<Span, cst::IdRefNode> {
     let (s, pos) = position(s)?;
 
     let (s, slice) = recognize(pair(
@@ -113,7 +114,7 @@ fn parse_id(s: Span) -> IResult<Span, cst::IdRef> {
 
     Ok((
         s,
-        cst::IdRef {
+        cst::IdRefNode {
             position: pos,
             name: slice.fragment(),
         },
@@ -197,7 +198,7 @@ where
 
 // a OR b AND c, etc.
 fn parse_bool_expr(s: Span) -> IResult<Span, cst::ExprNode> {
-    parse_binary_expr_left_to_right(s, &mut parse_add_expr, &mut parse_bool_op, true)
+    parse_binary_expr_left_to_right(s, &mut parse_comp_expr, &mut parse_bool_op, true)
 }
 
 fn parse_bool_op(s: Span) -> IResult<Span, cst::BinaryOpNode> {
@@ -208,6 +209,45 @@ fn parse_bool_op(s: Span) -> IResult<Span, cst::BinaryOpNode> {
     ))(s)?;
 
     Ok((s, cst::BinaryOpNode { position: pos, op }))
+}
+
+fn parse_comp_expr(s: Span) -> IResult<Span, cst::ExprNode> {
+    let (s, _) = multispace0(s)?;
+
+    let (s, pos) = position(s)?;
+
+    let (s, left) = parse_add_expr(s)?;
+
+    let (s, _) = multispace0(s)?;
+
+    let (s, op_pos) = position(s)?;
+
+    for (op_tag, op) in [
+        (">", BinaryOp::Gt),
+        (">=", BinaryOp::Geq),
+        ("<", BinaryOp::Lt),
+        ("<=", BinaryOp::Leq),
+        ("==", BinaryOp::Eq),
+        ("!=", BinaryOp::Neq),
+    ]
+    .iter()
+    .copied()
+    {
+        // If we match an op, expect an expression immediately
+        if let Ok((inner_s, _)) = tag::<_, _, ParseError>(op_tag)(s) {
+            let (inner_s, _) = multispace0(inner_s)?;
+            let (inner_s, right) = parse_add_expr(inner_s)?;
+            let out = cst::ExprNode::Binary(cst::BinaryExprNode {
+                position: op_pos,
+                op: cst::BinaryOpNode { op, position: pos },
+                left: Box::new(left),
+                right: Box::new(right),
+            });
+            return Ok((inner_s, out));
+        }
+    }
+
+    Ok((s, left))
 }
 
 fn parse_add_expr(s: Span) -> IResult<Span, cst::ExprNode> {
@@ -479,11 +519,18 @@ fn parse_id_expr(s: Span) -> IResult<Span, cst::ExprNode> {
     let (s, pos) = position(s)?;
     let (s, id) = parse_id(s)?;
 
-    Ok((
-        s,
-        cst::ExprNode::Id(cst::IdNode {
+    let expr = match id.name {
+        "nil" => cst::ExprNode::Nil(cst::NilNode { position: pos }),
+        "true" => cst::ExprNode::BoolConst(cst::BoolConstNode {
             position: pos,
-            id_text: id.name,
+            val: true,
         }),
-    ))
+        "false" => cst::ExprNode::BoolConst(cst::BoolConstNode {
+            position: pos,
+            val: false,
+        }),
+        _ => cst::ExprNode::Id(id),
+    };
+
+    Ok((s, expr))
 }

@@ -7,7 +7,7 @@ use super::*;
 fn res_test<'a, T: FnOnce() -> IResult<Span<'a>, ()>>(f: T) {
     let res = f();
     match res {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             println!("Error parsing node: {:?}", e);
             assert!(false);
@@ -35,7 +35,10 @@ fn ast_num(num: f64) -> Box<ast::ExprNode> {
 
 #[inline]
 fn neg(node: Box<ast::ExprNode>) -> Box<ast::ExprNode> {
-    Box::new(ast::ExprNode::Unary(ast::UnaryExprNode { op: ast::UnaryOp::Neg, arg: node}))
+    Box::new(ast::ExprNode::Unary(ast::UnaryExprNode {
+        op: ast::UnaryOp::Neg,
+        arg: node,
+    }))
 }
 
 #[test]
@@ -117,7 +120,7 @@ fn parse_expr_tests_bin_1() {
         let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
             op: ast::BinaryOp::Plus,
             left: ast_num(1.),
-            right: ast_num(2.)
+            right: ast_num(2.),
         });
         let actual: ast::ExprNode = actual.into();
 
@@ -136,7 +139,7 @@ fn parse_expr_tests_bin_2() {
         let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
             op: ast::BinaryOp::Minus,
             left: ast_num(1.),
-            right: ast_num(2.)
+            right: ast_num(2.),
         });
         let actual: ast::ExprNode = actual.into();
 
@@ -155,7 +158,7 @@ fn parse_expr_tests_bin_3() {
         let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
             op: ast::BinaryOp::Times,
             left: ast_num(1.),
-            right: ast_num(2.)
+            right: ast_num(2.),
         });
         let actual: ast::ExprNode = actual.into();
 
@@ -174,7 +177,7 @@ fn parse_expr_tests_bin_4() {
         let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
             op: ast::BinaryOp::Divide,
             left: ast_num(1.),
-            right: ast_num(2.)
+            right: ast_num(2.),
         });
         let actual: ast::ExprNode = actual.into();
 
@@ -193,7 +196,7 @@ fn parse_expr_tests_bin_5() {
         let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
             op: ast::BinaryOp::Divide,
             left: ast_num(1.),
-            right: ast_num(2.)
+            right: ast_num(2.),
         });
         let actual: ast::ExprNode = actual.into();
 
@@ -212,7 +215,7 @@ fn parse_expr_tests_bin_6() {
         let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
             op: ast::BinaryOp::Divide,
             left: ast_num(1.),
-            right: ast_num(2.)
+            right: ast_num(2.),
         });
         let actual: ast::ExprNode = actual.into();
 
@@ -231,7 +234,7 @@ fn parse_expr_tests_bin_7() {
         let expected = ast::ExprNode::Binary(ast::BinaryExprNode {
             op: ast::BinaryOp::Divide,
             left: ast_num(1.),
-            right: ast_num(2.)
+            right: ast_num(2.),
         });
         let actual: ast::ExprNode = actual.into();
 
@@ -253,8 +256,8 @@ fn parse_expr_tests_paren() {
             right: Box::new(ast::ExprNode::Binary(ast::BinaryExprNode {
                 op: ast::BinaryOp::Plus,
                 left: ast_num(2.),
-                right: neg(ast_num(3.))
-            }))
+                right: neg(ast_num(3.)),
+            })),
         });
         let actual: ast::ExprNode = actual.into();
 
@@ -277,7 +280,7 @@ fn parse_expr_tests_paren_2() {
                 op: ast::BinaryOp::Plus,
                 left: ast_num(1.2),
                 right: neg(ast_num(3.)),
-            }))
+            })),
         });
         let actual: ast::ExprNode = actual.into();
 
@@ -301,7 +304,7 @@ fn parse_id_tests() {
 
         assert_eq!(
             actual_1,
-            cst::IdRef {
+            cst::IdRefNode {
                 position: def_span(0, 1),
                 name: "fhdjfhjdks"
             }
@@ -310,7 +313,7 @@ fn parse_id_tests() {
 
         assert_eq!(
             actual_2,
-            cst::IdRef {
+            cst::IdRefNode {
                 position: def_span(11, 1),
                 name: "fdjksfn"
             }
@@ -319,7 +322,7 @@ fn parse_id_tests() {
 
         assert_eq!(
             actual_3,
-            cst::IdRef {
+            cst::IdRefNode {
                 position: def_span(21, 2),
                 name: "dsfjnkds"
             }

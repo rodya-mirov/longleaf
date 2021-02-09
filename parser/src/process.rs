@@ -15,7 +15,7 @@ impl<'a> From<cst::StmtNode<'a>> for ast::StmtNode {
 impl<'a> From<cst::AssignStmt<'a>> for ast::AssignStmt {
     fn from(assign: cst::AssignStmt) -> Self {
         ast::AssignStmt {
-            lhs: ast::IdRef::from(assign.lhs),
+            lhs: ast::IdRefNode::from(assign.lhs),
             rhs: ast::ExprNode::from(assign.rhs),
         }
     }
@@ -37,9 +37,9 @@ impl<'a> From<cst::PrintStmt<'a>> for ast::PrintStmt {
     }
 }
 
-impl<'a> From<cst::IdRef<'a>> for ast::IdRef {
-    fn from(id_ref: cst::IdRef<'a>) -> Self {
-        ast::IdRef {
+impl<'a> From<cst::IdRefNode<'a>> for ast::IdRefNode {
+    fn from(id_ref: cst::IdRefNode<'a>) -> Self {
+        ast::IdRefNode {
             name: id_ref.name.to_string(),
         }
     }
@@ -55,8 +55,10 @@ impl<'a> From<cst::ExprNode<'a>> for ast::ExprNode {
             cst::ExprNode::FnCall(f) => ast::ExprNode::FnCall(ast::FnCallNode::from(f)),
             cst::ExprNode::FnDef(f) => ast::ExprNode::FnDef(ast::FnDefNode::from(f)),
             cst::ExprNode::Paren(p) => ast::ExprNode::from(*p.child),
+            cst::ExprNode::Nil(n) => ast::ExprNode::Nil(ast::NilNode::from(n)),
+            cst::ExprNode::BoolConst(n) => ast::ExprNode::BoolConst(ast::BoolConstNode::from(n)),
             cst::ExprNode::Number(n) => ast::ExprNode::Number(ast::NumberNode::from(n)),
-            cst::ExprNode::Id(i) => ast::ExprNode::Id(ast::IdNode::from(i)),
+            cst::ExprNode::Id(i) => ast::ExprNode::Id(ast::IdRefNode::from(i)),
         }
     }
 }
@@ -98,6 +100,12 @@ impl From<cst::BinaryOp> for ast::BinaryOp {
             cst::BinaryOp::Times => ast::BinaryOp::Times,
             cst::BinaryOp::And => ast::BinaryOp::And,
             cst::BinaryOp::Or => ast::BinaryOp::Or,
+            cst::BinaryOp::Gt => ast::BinaryOp::Gt,
+            cst::BinaryOp::Geq => ast::BinaryOp::Geq,
+            cst::BinaryOp::Lt => ast::BinaryOp::Lt,
+            cst::BinaryOp::Leq => ast::BinaryOp::Leq,
+            cst::BinaryOp::Eq => ast::BinaryOp::Eq,
+            cst::BinaryOp::Neq => ast::BinaryOp::Neq,
         }
     }
 }
@@ -130,7 +138,7 @@ impl<'a> From<cst::FnDefNode<'a>> for ast::FnDefNode {
             arg_names: f
                 .arg_names
                 .into_iter()
-                .map(|a| ast::IdRef::from(a))
+                .map(|a| ast::IdRefNode::from(a))
                 .collect(),
             body: Box::new(ast::ExprNode::from(*f.body)),
         }
@@ -153,10 +161,14 @@ impl<'a> From<cst::NumberNode<'a>> for ast::NumberNode {
     }
 }
 
-impl<'a> From<cst::IdNode<'a>> for ast::IdNode {
-    fn from(i: cst::IdNode<'a>) -> Self {
-        ast::IdNode {
-            id_text: i.id_text.to_string(),
-        }
+impl<'a> From<cst::BoolConstNode<'a>> for ast::BoolConstNode {
+    fn from(n: cst::BoolConstNode<'a>) -> Self {
+        ast::BoolConstNode { val: n.val }
+    }
+}
+
+impl<'a> From<cst::NilNode<'a>> for ast::NilNode {
+    fn from(_: cst::NilNode<'a>) -> Self {
+        ast::NilNode {}
     }
 }

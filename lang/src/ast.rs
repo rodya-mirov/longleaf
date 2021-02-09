@@ -7,7 +7,7 @@ pub enum StmtNode {
 
 #[derive(PartialEq, Debug)]
 pub struct AssignStmt {
-    pub lhs: IdRef,
+    pub lhs: IdRefNode,
     pub rhs: ExprNode,
 }
 
@@ -29,12 +29,14 @@ pub enum ExprNode {
     If(IfExprNode),
     FnCall(FnCallNode),
     FnDef(FnDefNode),
+    Nil(NilNode),
+    BoolConst(BoolConstNode),
     Number(NumberNode),
-    Id(IdNode),
+    Id(IdRefNode),
 }
 
 #[derive(PartialEq, Debug)]
-pub struct IdRef {
+pub struct IdRefNode {
     pub name: String,
 }
 
@@ -65,6 +67,12 @@ pub enum BinaryOp {
     Divide,
     And,
     Or,
+    Gt,
+    Geq,
+    Eq,
+    Neq,
+    Lt,
+    Leq,
 }
 
 #[derive(PartialEq, Debug)]
@@ -73,9 +81,12 @@ pub struct NumberNode {
 }
 
 #[derive(PartialEq, Debug)]
-pub struct IdNode {
-    pub id_text: String,
+pub struct BoolConstNode {
+    pub val: bool,
 }
+
+#[derive(PartialEq, Debug)]
+pub struct NilNode {}
 
 #[derive(PartialEq, Debug)]
 pub struct IfExprNode {
@@ -98,6 +109,6 @@ pub struct FnCallNode {
 
 #[derive(PartialEq, Debug)]
 pub struct FnDefNode {
-    pub arg_names: Vec<IdRef>,
+    pub arg_names: Vec<IdRefNode>,
     pub body: Box<ExprNode>,
 }

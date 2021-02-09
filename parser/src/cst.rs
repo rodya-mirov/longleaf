@@ -10,7 +10,7 @@ pub enum StmtNode<'a> {
 #[derive(PartialEq, Debug)]
 pub struct AssignStmt<'a> {
     pub position: Span<'a>,
-    pub lhs: IdRef<'a>,
+    pub lhs: IdRefNode<'a>,
     pub rhs: ExprNode<'a>,
 }
 
@@ -35,12 +35,14 @@ pub enum ExprNode<'a> {
     FnCall(FnCallNode<'a>),
     FnDef(FnDefNode<'a>),
     Paren(ParenNode<'a>),
+    Nil(NilNode<'a>),
+    BoolConst(BoolConstNode<'a>),
     Number(NumberNode<'a>),
-    Id(IdNode<'a>),
+    Id(IdRefNode<'a>),
 }
 
 #[derive(PartialEq, Debug)]
-pub struct IdRef<'a> {
+pub struct IdRefNode<'a> {
     pub position: Span<'a>,
     pub name: &'a str,
 }
@@ -78,7 +80,7 @@ pub struct BinaryOpNode<'a> {
     pub op: BinaryOp,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum BinaryOp {
     Plus,
     Minus,
@@ -86,6 +88,12 @@ pub enum BinaryOp {
     Divide,
     And,
     Or,
+    Gt,
+    Geq,
+    Lt,
+    Leq,
+    Eq,
+    Neq,
 }
 
 #[derive(PartialEq, Debug)]
@@ -102,9 +110,14 @@ pub struct NumberNode<'a> {
 }
 
 #[derive(PartialEq, Debug)]
-pub struct IdNode<'a> {
+pub struct NilNode<'a> {
     pub position: Span<'a>,
-    pub id_text: &'a str,
+}
+
+#[derive(PartialEq, Debug)]
+pub struct BoolConstNode<'a> {
+    pub position: Span<'a>,
+    pub val: bool,
 }
 
 #[derive(PartialEq, Debug)]
@@ -132,6 +145,6 @@ pub struct FnCallNode<'a> {
 #[derive(PartialEq, Debug)]
 pub struct FnDefNode<'a> {
     pub position: Span<'a>,
-    pub arg_names: Vec<IdRef<'a>>,
+    pub arg_names: Vec<IdRefNode<'a>>,
     pub body: Box<ExprNode<'a>>,
 }

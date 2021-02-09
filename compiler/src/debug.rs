@@ -36,6 +36,16 @@ pub fn disassemble_instr<W: Write>(chunk: &Chunk, offset: usize, w: &mut W) -> I
         Ok(OpCode::OP_DIVIDE) => simple_instruction("OP_NEGATE", offset, w),
         Ok(OpCode::OP_PRINT) => simple_instruction("OP_PRINT", offset, w),
         Ok(OpCode::OP_POP) => simple_instruction("OP_POP", offset, w),
+        Ok(OpCode::OP_NIL) => simple_instruction("OP_NIL", offset, w),
+        Ok(OpCode::OP_TRUE) => simple_instruction("OP_TRUE", offset, w),
+        Ok(OpCode::OP_FALSE) => simple_instruction("OP_FALSE", offset, w),
+        Ok(OpCode::OP_NOT) => simple_instruction("OP_NOT", offset, w),
+        Ok(OpCode::OP_GEQ) => simple_instruction("OP_GEQ", offset, w),
+        Ok(OpCode::OP_GT) => simple_instruction("OP_GT", offset, w),
+        Ok(OpCode::OP_EQ) => simple_instruction("OP_EQ", offset, w),
+        Ok(OpCode::OP_NEQ) => simple_instruction("OP_NEQ", offset, w),
+        Ok(OpCode::OP_LEQ) => simple_instruction("OP_LEQ", offset, w),
+        Ok(OpCode::OP_LT) => simple_instruction("OP_LT", offset, w),
         Err(unknown_code) => {
             write!(w, "Unknown opcode {}\n", unknown_code)?;
             Ok(offset + 1)
@@ -62,6 +72,6 @@ fn constant_instruction<W: Write>(
 }
 
 fn print_value<W: Write>(w: &mut W, val: Value) -> IoResult {
-    write!(w, "{:.3}", val)?;
+    write!(w, "{}", val)?;
     Ok(())
 }

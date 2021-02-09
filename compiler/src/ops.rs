@@ -16,6 +16,17 @@ pub enum OpCode {
     OP_PRINT = 7,
     // just pop something off the stack, whatever
     OP_POP = 8,
+    // push constants
+    OP_NIL = 9,
+    OP_TRUE = 10,
+    OP_FALSE = 11,
+    OP_NOT = 12,
+    OP_GEQ = 13,
+    OP_GT = 14,
+    OP_EQ = 15,
+    OP_NEQ = 16,
+    OP_LEQ = 17,
+    OP_LT = 18,
 }
 
 impl TryFrom<u8> for OpCode {
@@ -33,6 +44,16 @@ impl TryFrom<u8> for OpCode {
             6 => Ok(OpCode::OP_DIVIDE),
             7 => Ok(OpCode::OP_PRINT),
             8 => Ok(OpCode::OP_POP),
+            9 => Ok(OpCode::OP_NIL),
+            10 => Ok(OpCode::OP_TRUE),
+            11 => Ok(OpCode::OP_FALSE),
+            12 => Ok(OpCode::OP_NOT),
+            13 => Ok(OpCode::OP_GEQ),
+            14 => Ok(OpCode::OP_GT),
+            15 => Ok(OpCode::OP_EQ),
+            16 => Ok(OpCode::OP_NEQ),
+            17 => Ok(OpCode::OP_LEQ),
+            18 => Ok(OpCode::OP_LT),
             _ => Err(value),
         }
     }

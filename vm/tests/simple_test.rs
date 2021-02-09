@@ -41,9 +41,53 @@ pub fn simple_direct_test() {
 
 #[test]
 pub fn simple_interp_test() {
-    // let text = "print -3;";
     let text = "print 12 / (1.2 + -3);";
     let expected = "-6.667\n";
+    let actual = helpers::run_and_collect_output(text);
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+pub fn simple_interp_test_2() {
+    let text = "print nil;";
+    let expected = "nil\n";
+    let actual = helpers::run_and_collect_output(text);
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+pub fn simple_interp_test_3() {
+    let text = "print false;";
+    let expected = "false\n";
+    let actual = helpers::run_and_collect_output(text);
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+pub fn simple_interp_test_4() {
+    let text = "print true;";
+    let expected = "true\n";
+    let actual = helpers::run_and_collect_output(text);
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+pub fn simple_interp_test_5() {
+    let text = "print !true;";
+    let expected = "false\n";
+    let actual = helpers::run_and_collect_output(text);
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+pub fn simple_interp_test_6() {
+    let text = "print (1.2 > 1.3);";
+    let expected = "false\n";
     let actual = helpers::run_and_collect_output(text);
 
     assert_eq!(expected, actual);
