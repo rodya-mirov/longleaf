@@ -32,6 +32,7 @@ pub enum ExprNode {
     Nil(NilNode),
     BoolConst(BoolConstNode),
     Number(NumberNode),
+    String(StringNode),
     Id(IdRefNode),
 }
 
@@ -78,6 +79,11 @@ pub enum BinaryOp {
 #[derive(PartialEq, Debug)]
 pub struct NumberNode {
     pub val: f64,
+}
+
+#[derive(PartialEq, Debug)]
+pub struct StringNode {
+    pub val: String,
 }
 
 #[derive(PartialEq, Debug)]

@@ -1,7 +1,6 @@
 use lang::ast;
 
-use crate::{chunk::Chunk, ops::OpCode, Value};
-use lang::ast::BoolConstNode;
+use crate::{chunk::Chunk, ops::OpCode, Value, Obj, ObjString};
 
 pub struct CompileContext {
     pub(crate) current_chunk: Chunk,
@@ -57,6 +56,7 @@ impl CompileContext {
             ast::ExprNode::Nil(_) => self.compile_nil(),
             ast::ExprNode::BoolConst(b) => self.compile_bool_const(b),
             ast::ExprNode::Number(n) => self.compile_number(n),
+            ast::ExprNode::String(s) => self.compile_str(s),
             ast::ExprNode::Id(_) => unimplemented!(),
         }
     }
@@ -66,7 +66,7 @@ impl CompileContext {
         Ok(())
     }
 
-    fn compile_bool_const(&mut self, b: BoolConstNode) -> CompileResult {
+    fn compile_bool_const(&mut self, b: ast::BoolConstNode) -> CompileResult {
         let instr = match b.val {
             true => OpCode::OP_TRUE,
             false => OpCode::OP_FALSE,
@@ -78,6 +78,22 @@ impl CompileContext {
 
     fn compile_number(&mut self, n: ast::NumberNode) -> CompileResult {
         let ci = self.current_chunk.add_constant(Value::Number(n.val));
+        if ci > (u8::MAX as usize) {
+            return Err(CompileError::TooManyConstants);
+        }
+
+        self.current_chunk.write_chunk(OpCode::OP_CONSTANT as u8, 0);
+        self.current_chunk.write_chunk(ci as u8, 0);
+
+        Ok(())
+    }
+
+    fn compile_str(&mut self, s: ast::StringNode) -> CompileResult {
+        let obj: Obj = Obj::ObjString(ObjString { val: s.val });
+        let val: *mut Obj = Box::into_raw(Box::new(obj));
+        let val: Value = Value::Object(val);
+
+        let ci = self.current_chunk.add_constant(val);
         if ci > (u8::MAX as usize) {
             return Err(CompileError::TooManyConstants);
         }
@@ -113,6 +129,7 @@ impl CompileContext {
             ast::BinaryOp::Neq => self.current_chunk.write_chunk(OpCode::OP_NEQ as u8, 0),
             ast::BinaryOp::Leq => self.current_chunk.write_chunk(OpCode::OP_LEQ as u8, 0),
             ast::BinaryOp::Lt => self.current_chunk.write_chunk(OpCode::OP_LT as u8, 0),
+            // easy to do non-short-circuit, but deferring for now to wait for the control flow chapter
             ast::BinaryOp::And => unimplemented!(),
             ast::BinaryOp::Or => unimplemented!(),
         }

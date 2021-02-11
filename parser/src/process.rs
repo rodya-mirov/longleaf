@@ -58,6 +58,7 @@ impl<'a> From<cst::ExprNode<'a>> for ast::ExprNode {
             cst::ExprNode::Nil(n) => ast::ExprNode::Nil(ast::NilNode::from(n)),
             cst::ExprNode::BoolConst(n) => ast::ExprNode::BoolConst(ast::BoolConstNode::from(n)),
             cst::ExprNode::Number(n) => ast::ExprNode::Number(ast::NumberNode::from(n)),
+            cst::ExprNode::String(s) => ast::ExprNode::String(ast::StringNode::from(s)),
             cst::ExprNode::Id(i) => ast::ExprNode::Id(ast::IdRefNode::from(i)),
         }
     }
@@ -158,6 +159,14 @@ impl<'a> From<cst::IfExprNode<'a>> for ast::IfExprNode {
 impl<'a> From<cst::NumberNode<'a>> for ast::NumberNode {
     fn from(n: cst::NumberNode<'a>) -> Self {
         ast::NumberNode { val: n.val }
+    }
+}
+
+impl<'a> From<cst::StringNode<'a>> for ast::StringNode {
+    fn from(n: cst::StringNode<'a>) -> Self {
+        ast::StringNode {
+            val: n.text.to_string(),
+        }
     }
 }
 

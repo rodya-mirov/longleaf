@@ -11,7 +11,20 @@ pub mod ops;
 pub enum Value {
     Number(f64),
     Bool(bool),
+    Object(*mut Obj),
     Nil,
+}
+
+// Not clone; we specifically want to manage this memory very carefully
+#[derive(Debug)]
+pub enum Obj {
+    ObjString(ObjString),
+}
+
+// Not clone; we specifically want to manage this memory very carefully
+#[derive(Debug)]
+pub struct ObjString {
+    pub val: String,
 }
 
 impl Display for Value {
@@ -20,6 +33,14 @@ impl Display for Value {
             Value::Nil => write!(f, "nil"),
             Value::Bool(b) => write!(f, "{}", *b),
             Value::Number(n) => write!(f, "{:.03}", *n),
+            Value::Object(o) => {
+                let obj_ref: &Obj = unsafe { o.as_ref().unwrap() };
+                match obj_ref {
+                    Obj::ObjString(s) => {
+                        write!(f, "{}", s.val)
+                    }
+                }
+            },
         }
     }
 }

@@ -2,9 +2,9 @@ use std::collections::VecDeque;
 
 use nom::{
     branch::alt,
-    bytes::complete::tag,
-    character::complete::{alpha1, alphanumeric1, multispace0, multispace1},
-    combinator::recognize,
+    bytes::complete::{escaped_transform, tag},
+    character::complete::{alpha1, alphanumeric1, multispace0, multispace1, none_of},
+    combinator::{recognize, value},
     multi::many0,
     number::complete::recognize_float,
     sequence::{pair, tuple},
@@ -321,6 +321,7 @@ fn parse_base_expr(s: Span) -> IResult<Span, cst::ExprNode> {
         parse_fn_call_expr,
         parse_fn_defn_expr,
         parse_if_expr,
+        parse_str_expr,
         parse_number_expr,
         parse_id_expr,
     ))(s)
@@ -488,6 +489,36 @@ fn parse_if_expr(s: Span) -> IResult<Span, cst::ExprNode> {
             cond: Box::new(cond),
             on_true: Box::new(on_true),
             on_false: Box::new(on_false),
+        }),
+    ))
+}
+
+// TODO: this doesn't handle escaped quotes correctly (there is a failing unit test)
+// https://www.reddit.com/r/rust/comments/8rpzjd/parsing_string_literals_in_nom/ has some ideas
+fn parse_str_expr(s: Span) -> IResult<Span, cst::ExprNode> {
+    let (s, _) = multispace0(s)?;
+
+    let (s, pos) = position(s)?;
+
+    let (s, _) = tag("\"")(s)?;
+
+    let (s, text) = escaped_transform(
+        none_of("\""),
+        '\\',
+        alt((
+            value("\\", tag("\\")),
+            value("\"", tag("\"")),
+            value("n", tag("\n")),
+        )),
+    )(s)?;
+
+    let (s, _) = tag("\"")(s)?;
+
+    Ok((
+        s,
+        cst::ExprNode::String(cst::StringNode {
+            position: pos,
+            text,
         }),
     ))
 }

@@ -38,6 +38,7 @@ pub enum ExprNode<'a> {
     Nil(NilNode<'a>),
     BoolConst(BoolConstNode<'a>),
     Number(NumberNode<'a>),
+    String(StringNode<'a>),
     Id(IdRefNode<'a>),
 }
 
@@ -107,6 +108,12 @@ pub struct NumberNode<'a> {
     pub position: Span<'a>,
     pub num_text: &'a str,
     pub val: f64,
+}
+
+#[derive(PartialEq, Debug)]
+pub struct StringNode<'a> {
+    pub position: Span<'a>,
+    pub text: String,
 }
 
 #[derive(PartialEq, Debug)]

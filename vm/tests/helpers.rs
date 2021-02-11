@@ -21,7 +21,7 @@ pub fn run_and_collect_output(text: &str) -> String {
         Err(e) => {
             println!("Script output: {}", out);
             println!("Interpret error: {:?}", e);
-            assert!(false);
+            assert!(false, "Script should not error");
             unreachable!()
         }
     }

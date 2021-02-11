@@ -290,6 +290,51 @@ fn parse_expr_tests_paren_2() {
 }
 
 #[test]
+fn parse_str_tests() {
+    res_test(|| {
+        let s = Span::new("\"whatever\"");
+        let (_s, actual) = parse_expr(s)?;
+        let expected = ast::ExprNode::String(ast::StringNode {
+            val: "whatever".to_string(),
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_str_tests_2() {
+    res_test(|| {
+        let s = Span::new("\"whatever\nnewline\"");
+        let (_s, actual) = parse_expr(s)?;
+        let expected = ast::ExprNode::String(ast::StringNode {
+            val: "whatever\nnewline".to_string(),
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
+fn parse_str_tests_escaped_quote() {
+    res_test(|| {
+        let s = Span::new("\"whatever\\\"stuff\n\\newline\"");
+        let (_s, actual) = parse_expr(s)?;
+        let expected = ast::ExprNode::String(ast::StringNode {
+            val: "whatever\"\\\nnewline".to_string(),
+        });
+        let actual: ast::ExprNode = actual.into();
+
+        assert_eq!(actual, expected);
+        ok()
+    })
+}
+
+#[test]
 fn parse_id_tests() {
     res_test(|| {
         let s = Span::new("fhdjfhjdks fdjksfn \n dsfjnkds 1");

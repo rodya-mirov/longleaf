@@ -1,13 +1,53 @@
 use std::{convert::TryFrom, io::Write};
 
-use compiler::{chunk::Chunk, ops::OpCode, Value};
+use compiler::{chunk::Chunk, ops::OpCode, Value, Obj, ObjString};
 
 pub struct VM {
     chunk: Chunk,
     // pointer to an instruction in chunk.code
     ip: usize,
     stack: Stack,
+    objects: Objects,
 }
+
+mod objects {
+    use compiler::Obj;
+
+    pub struct Objects {
+        owned: Vec<*mut Obj>,
+    }
+
+    impl Objects {
+        pub fn new() -> Self {
+            Self { owned: Vec::new() }
+        }
+
+        // This is probably ... not what we want? idk translating this C code into rust
+        // is rough on my tiny brain and I'm kind of just making it up.
+        // original: http://www.craftinginterpreters.com/strings.html#strings
+        pub fn track(&mut self, obj: *mut Obj) {
+            self.owned.push(obj);
+        }
+    }
+
+    impl Drop for Objects {
+        fn drop(&mut self) {
+            while let Some(obj) = self.owned.pop() {
+                unsafe {
+                    #[cfg(any(test, feature="verbose"))] {
+                        let o = obj.as_ref().unwrap();
+                        match o {
+                            Obj::ObjString(s) => println!("Dropping string '{}'", s.val),
+                        }
+                    }
+                    std::ptr::drop_in_place(obj)
+                }
+            }
+        }
+    }
+}
+
+use objects::Objects;
 
 mod stack {
     use super::{CompilerErrorKind, InterpretError, InterpretResult, RuntimeErrorKind};
@@ -55,12 +95,12 @@ mod stack {
 
         #[inline(always)]
         pub fn peek(&self, dist: usize) -> InterpretResult<Value> {
-            if dist > self.stack_p {
+            if self.stack_p == 0 ||  dist > self.stack_p - 1 {
                 Err(InterpretError::CompileError(
                     CompilerErrorKind::StackUnderflow,
                 ))
             } else {
-                Ok(self.stack[self.stack_p - dist])
+                Ok(self.stack[self.stack_p - 1 - dist])
             }
         }
     }
@@ -160,6 +200,7 @@ impl VM {
             chunk,
             ip: 0,
             stack: Stack::new(),
+            objects: Objects::new(),
         };
         vm.run(w)
     }
@@ -167,19 +208,21 @@ impl VM {
     fn run<W: Write>(&mut self, w: &mut W) -> InterpretResult {
         loop {
             let instr: u8 = self.chunk.read_byte(self.ip);
-            self.ip += 1;
 
             #[cfg(any(test, feature = "verbose"))]
             {
                 // Dump the stack ...
-                write!(w, "          ")?;
+                write!(w, "    [STACK STATE]: ")?;
                 for val in &self.stack {
                     write!(w, "[ {:.03} ]", val)?;
                 }
                 write!(w, "\n")?;
                 // ... then disassemble the current instruction
+                write!(w, "Current instruction:\n  ")?;
                 compiler::debug::disassemble_instr(&self.chunk, self.ip, w)?;
             }
+
+            self.ip += 1;
 
             // TODO: jump table? super fast byte math? idk but this is the perf-intensive part
             let instr: OpCode = OpCode::try_from(instr).unwrap();
@@ -220,10 +263,28 @@ impl VM {
                 }
                 OpCode::OP_ADD => {
                     // TODO: here and throughout; when we do GC, it may be important to keep these on the stack while the operation is going (???)
-                    let b = as_number(self.stack.pop()?)?;
-                    let a = as_number(self.stack.pop()?)?;
-                    let val = a + b;
-                    self.stack.push(val)?;
+                    let (a, b) = (self.stack.peek(1)?, self.stack.peek(0)?);
+                    if is_string(a) && is_string(b) {
+                        self.stack.pop()?;
+                        self.stack.pop()?;
+                        let b = as_string(b)?;
+                        let a = as_string(a)?;
+                        let mut new_str: String = a.val.clone();
+                        new_str.push_str(b.val.as_str());
+                        let val = Obj::ObjString(ObjString { val: new_str });
+                        let val_ptr = Box::into_raw(Box::new(val));
+                        self.objects.track(val_ptr);
+                        let val = Value::Object(val_ptr);
+                        self.stack.push(val)?;
+                    } else if is_number(a) && is_number(b) {
+                        self.stack.pop()?;
+                        self.stack.pop()?;
+                        let val = as_number(a)? + as_number(b)?;
+                        self.stack.push(val)?;
+                    } else {
+                        write!(w, "Cannot add values {:?} and {:?}", a, b)?;
+                        return Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType));
+                    }
                 }
                 OpCode::OP_SUBTRACT => {
                     let b = as_number(self.stack.pop()?)?;
@@ -311,6 +372,23 @@ fn check_eq(a: Value, b: Value) -> InterpretResult<bool> {
             Value::Nil => Ok(true),
             _ => Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType)),
         },
+        Value::Object(a) => {
+            match b {
+                Value::Object(b) => {
+                    match unsafe { a.as_ref().unwrap() } {
+                        Obj::ObjString(a) => {
+                            match unsafe { b.as_ref().unwrap() } {
+                                Obj::ObjString(b) => {
+                                    println!("{} and {}", a.val, b.val);
+                                    Ok(&a.val == &b.val)
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType)),
+            }
+        },
     }
 }
 
@@ -328,6 +406,39 @@ fn check_neq(a: Value, b: Value) -> InterpretResult<bool> {
             Value::Nil => Ok(false),
             _ => Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType)),
         },
+        Value::Object(_) => unimplemented!(),
+    }
+}
+
+#[inline(always)]
+fn is_string(v: Value) -> bool {
+    match v {
+        Value::Object(o) => {
+            match unsafe { o.as_ref().expect("GC Pointer should be valid") } {
+                Obj::ObjString(_) => true,
+            }
+        }
+        _ => false,
+    }
+}
+
+#[inline(always)]
+fn is_number(v: Value) -> bool {
+    match v {
+        Value::Number(_) => true,
+        _ => false,
+    }
+}
+
+// TODO: probably refactor this to take a closure
+fn as_string<'a>(v: Value) -> InterpretResult<&'a ObjString> {
+    match v {
+        Value::Object(o) => {
+            match unsafe { o.as_ref().expect("GC Pointer should be valid") } {
+                Obj::ObjString(s) => Ok(s),
+            }
+        }
+        _ => Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType))
     }
 }
 

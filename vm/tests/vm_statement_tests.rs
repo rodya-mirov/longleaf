@@ -92,3 +92,53 @@ pub fn simple_interp_test_6() {
 
     assert_eq!(expected, actual);
 }
+
+#[test]
+pub fn string_test_0() {
+    let text = "print \"ugh whatever\";";
+    let expected = "ugh whatever\n";
+    let actual = helpers::run_and_collect_output(text);
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+pub fn string_test_1() {
+    let text = r#"print ("a" + "foo" + "bar");"#;
+    let expected = "afoobar\n";
+    let actual = helpers::run_and_collect_output(text);
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+pub fn string_test_2() {
+    let text = r#"print ("a"+"b"+"cd");"#;
+    let expected = "abcd\n";
+    let actual = helpers::run_and_collect_output(text);
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+pub fn string_test_3() {
+    let text = r#"print ("abc" + "d");"#;
+    let expected = "abcd\n";
+    let actual = helpers::run_and_collect_output(text);
+
+    assert_eq!(expected, actual);
+}
+
+#[test]
+pub fn string_eq_test_0() {
+    let text = r#"print ("a"+"b"+"cd") == ("abc" + "d");"#;
+    let expected = "true\n";
+    let actual = helpers::run_and_collect_output(text);
+
+    if expected != actual {
+        println!("Expected:\n{}\n", expected);
+        println!("Actual:\n{}\n", actual);
+    }
+
+    assert_eq!(expected, actual);
+}
