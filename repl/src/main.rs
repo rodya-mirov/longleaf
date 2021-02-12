@@ -15,7 +15,18 @@ fn main() {
                 let chunk = std::mem::replace(vm.chunk_mut(), Default::default());
                 let mut ctx = compiler::compile::CompileContext::new_with(chunk);
                 ctx.compile_stmt(node).unwrap();
-                *vm.chunk_mut() = ctx.into_chunk();
+                let chunk = ctx.into_chunk();
+
+                #[cfg(feature = "verbose")]
+                {
+                    compiler::debug::disassemble_chunk(
+                        &chunk,
+                        "User Input",
+                        &mut std::io::stdout(),
+                    );
+                }
+
+                *vm.chunk_mut() = chunk;
                 vm.run(&mut std::io::stdout()).unwrap();
             }
             Err(e) => {

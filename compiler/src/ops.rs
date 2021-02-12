@@ -29,6 +29,10 @@ pub enum OpCode {
     OP_LT = 18,
     OP_DEFINE_GLOBAL = 19,
     OP_GET_GLOBAL = 20,
+    OP_SET_LOCAL = 21,
+    OP_GET_LOCAL = 22,
+    // basically pop at offset - 1; equivalently { let a = pop()?; pop()?; push(a); }
+    OP_POP_SWAP = 23,
 }
 
 impl TryFrom<u8> for OpCode {
@@ -58,6 +62,9 @@ impl TryFrom<u8> for OpCode {
             18 => Ok(OpCode::OP_LT),
             19 => Ok(OpCode::OP_DEFINE_GLOBAL),
             20 => Ok(OpCode::OP_GET_GLOBAL),
+            21 => Ok(OpCode::OP_SET_LOCAL),
+            22 => Ok(OpCode::OP_GET_LOCAL),
+            23 => Ok(OpCode::OP_POP_SWAP),
             _ => Err(value),
         }
     }

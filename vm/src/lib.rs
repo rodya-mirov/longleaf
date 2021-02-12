@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, io::Write, collections::HashMap};
+use std::{collections::HashMap, convert::TryFrom, io::Write};
 
 use compiler::{chunk::Chunk, ops::OpCode, Obj, ObjString, Value};
 
@@ -68,6 +68,27 @@ mod stack {
         pub fn new() -> Self {
             let stack = Box::new([Value::Nil; STACK_SIZE]);
             Self { stack, stack_p: 0 }
+        }
+
+        #[inline(always)]
+        pub fn set(&mut self, idx: usize, val: Value) -> InterpretResult {
+            if idx >= self.stack_p {
+                return Err(InterpretError::RuntimeError(
+                    RuntimeErrorKind::OutOfRangeLocalIdx,
+                ));
+            }
+            self.stack[idx] = val;
+            Ok(())
+        }
+
+        #[inline(always)]
+        pub fn get(&mut self, idx: usize) -> InterpretResult<Value> {
+            if idx >= self.stack_p {
+                return Err(InterpretError::RuntimeError(
+                    RuntimeErrorKind::OutOfRangeLocalIdx,
+                ));
+            }
+            Ok(self.stack[idx])
         }
 
         #[inline(always)]
@@ -158,6 +179,7 @@ pub enum CompilerErrorKind {
 // These are all possible from user code bugs or other issues at runtime
 #[derive(Debug)]
 pub enum RuntimeErrorKind {
+    OutOfRangeLocalIdx,
     StackOverflow,
     UndefinedGlobal,
     // TODO: probably more debug output would be helpful, this happens a lot
@@ -257,8 +279,30 @@ impl VM {
                 OpCode::OP_POP => {
                     self.stack.pop()?;
                 }
+                OpCode::OP_POP_SWAP => {
+                    let keep = self.stack.pop()?;
+                    self.stack.pop()?;
+                    self.stack.push(keep)?;
+                }
                 OpCode::OP_CONSTANT => {
                     let val = self.read_constant()?;
+                    self.stack.push(val)?;
+                }
+                OpCode::OP_SET_LOCAL => {
+                    // This is leftover; if we at some point allow mutable locals, which we will,
+                    // then this should allow them to work correctly
+                    #[allow(unreachable_code)] {
+                        unimplemented!("Local mutation is not correctly supported");
+                        let stack_idx = self.chunk.read_byte(self.ip);
+                        self.ip += 1;
+                        let val = self.stack.peek(0)?;
+                        self.stack.set(stack_idx as usize, val)?;
+                    }
+                }
+                OpCode::OP_GET_LOCAL => {
+                    let stack_idx = self.chunk.read_byte(self.ip);
+                    self.ip += 1;
+                    let val = self.stack.get(stack_idx as usize)?;
                     self.stack.push(val)?;
                 }
                 OpCode::OP_DEFINE_GLOBAL => {
@@ -272,7 +316,11 @@ impl VM {
                     let name: &ObjString = as_string(val)?;
                     match self.globals.get(&name.val) {
                         Some(val) => self.stack.push(*val)?,
-                        None => return Err(InterpretError::RuntimeError(RuntimeErrorKind::UndefinedGlobal)),
+                        None => {
+                            return Err(InterpretError::RuntimeError(
+                                RuntimeErrorKind::UndefinedGlobal,
+                            ))
+                        }
                     }
                 }
                 OpCode::OP_NIL => {
@@ -443,7 +491,27 @@ fn check_neq(a: Value, b: Value) -> InterpretResult<bool> {
             Value::Nil => Ok(false),
             _ => Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType)),
         },
-        Value::Object(_) => unimplemented!(),
+        Value::Object(a) => {
+            match b {
+                Value::Object(b) => {
+                    // Quick optimization; in the (common?) case of two references pointing
+                    // to exactly the same object, we don't need to deref or anything
+                    if std::ptr::eq(a, b) {
+                        return Ok(false);
+                    }
+
+                    match unsafe { a.as_ref().unwrap() } {
+                        Obj::ObjString(a) => match unsafe { b.as_ref().unwrap() } {
+                            Obj::ObjString(b) => {
+                                println!("{} and {}", a.val, b.val);
+                                Ok(&a.val != &b.val)
+                            }
+                        },
+                    }
+                }
+                _ => Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType)),
+            }
+        }
     }
 }
 
