@@ -46,6 +46,8 @@ pub fn disassemble_instr<W: Write>(chunk: &Chunk, offset: usize, w: &mut W) -> I
         Ok(OpCode::OP_NEQ) => simple_instruction("OP_NEQ", offset, w),
         Ok(OpCode::OP_LEQ) => simple_instruction("OP_LEQ", offset, w),
         Ok(OpCode::OP_LT) => simple_instruction("OP_LT", offset, w),
+        Ok(OpCode::OP_DEFINE_GLOBAL) => constant_instruction(chunk, "OP_DEFINE_GLOBAL", offset, w),
+        Ok(OpCode::OP_GET_GLOBAL) => constant_instruction(chunk, "OP_GET_GLOBAL", offset, w),
         Err(unknown_code) => {
             write!(w, "Unknown opcode {}\n", unknown_code)?;
             Ok(offset + 1)

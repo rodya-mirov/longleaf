@@ -27,6 +27,8 @@ pub enum OpCode {
     OP_NEQ = 16,
     OP_LEQ = 17,
     OP_LT = 18,
+    OP_DEFINE_GLOBAL = 19,
+    OP_GET_GLOBAL = 20,
 }
 
 impl TryFrom<u8> for OpCode {
@@ -54,6 +56,8 @@ impl TryFrom<u8> for OpCode {
             16 => Ok(OpCode::OP_NEQ),
             17 => Ok(OpCode::OP_LEQ),
             18 => Ok(OpCode::OP_LT),
+            19 => Ok(OpCode::OP_DEFINE_GLOBAL),
+            20 => Ok(OpCode::OP_GET_GLOBAL),
             _ => Err(value),
         }
     }

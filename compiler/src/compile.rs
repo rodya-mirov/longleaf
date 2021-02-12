@@ -1,6 +1,6 @@
 use lang::ast;
 
-use crate::{chunk::Chunk, ops::OpCode, Value, Obj, ObjString};
+use crate::{chunk::Chunk, ops::OpCode, Obj, ObjString, Value};
 
 pub struct CompileContext {
     pub(crate) current_chunk: Chunk,
@@ -21,6 +21,12 @@ impl CompileContext {
         }
     }
 
+    pub fn new_with(chunk: Chunk) -> Self {
+        Self {
+            current_chunk: chunk,
+        }
+    }
+
     pub fn into_chunk(self) -> Chunk {
         self.current_chunk
     }
@@ -28,7 +34,7 @@ impl CompileContext {
     pub fn compile_stmt(&mut self, stmt: ast::StmtNode) -> CompileResult {
         match stmt {
             ast::StmtNode::Print(stmt) => self.compile_print_stmt(stmt),
-            ast::StmtNode::Assign(_) => unimplemented!(),
+            ast::StmtNode::Assign(stmt) => self.compile_assign_stmt(stmt),
             ast::StmtNode::Expr(stmt) => self.compile_expr_stmt(stmt),
         }
     }
@@ -36,6 +42,21 @@ impl CompileContext {
     fn compile_print_stmt(&mut self, stmt: ast::PrintStmt) -> CompileResult {
         self.compile_expr(stmt.expr)?;
         self.current_chunk.write_chunk(OpCode::OP_PRINT as u8, 0);
+        Ok(())
+    }
+
+    fn compile_assign_stmt(&mut self, stmt: ast::AssignStmt) -> CompileResult {
+        self.compile_expr(stmt.rhs)?;
+
+        // TODO: don't make a new ci every time?
+        let ci = self.register_string_value(stmt.lhs.name);
+        if ci > u8::MAX as usize {
+            return Err(CompileError::TooManyConstants);
+        }
+
+        self.current_chunk.write_chunk(OpCode::OP_DEFINE_GLOBAL as u8, 0);
+        self.current_chunk.write_chunk(ci as u8, 0);
+
         Ok(())
     }
 
@@ -57,7 +78,7 @@ impl CompileContext {
             ast::ExprNode::BoolConst(b) => self.compile_bool_const(b),
             ast::ExprNode::Number(n) => self.compile_number(n),
             ast::ExprNode::String(s) => self.compile_str(s),
-            ast::ExprNode::Id(_) => unimplemented!(),
+            ast::ExprNode::Id(i) => self.compile_id_ref(i),
         }
     }
 
@@ -88,17 +109,37 @@ impl CompileContext {
         Ok(())
     }
 
-    fn compile_str(&mut self, s: ast::StringNode) -> CompileResult {
-        let obj: Obj = Obj::ObjString(ObjString { val: s.val });
+    fn register_string_value(&mut self, val: String) -> usize {
+        let obj: Obj = Obj::ObjString(ObjString { val });
         let val: *mut Obj = Box::into_raw(Box::new(obj));
         let val: Value = Value::Object(val);
 
-        let ci = self.current_chunk.add_constant(val);
+        self.current_chunk.add_constant(val)
+    }
+
+    fn compile_str(&mut self, s: ast::StringNode) -> CompileResult {
+        let ci = self.register_string_value(s.val);
         if ci > (u8::MAX as usize) {
             return Err(CompileError::TooManyConstants);
         }
 
         self.current_chunk.write_chunk(OpCode::OP_CONSTANT as u8, 0);
+        self.current_chunk.write_chunk(ci as u8, 0);
+
+        Ok(())
+    }
+
+    fn compile_id_ref(&mut self, i: ast::IdRefNode) -> CompileResult {
+        // TODO: if you do `let x = 12; print x; print x; ...` too many times, this will overflow
+        // That's stupid; we should reuse the same constant index for the same string, especially
+        // for variable references
+        let ci = self.register_string_value(i.name);
+        if ci > (u8::MAX as usize) {
+            return Err(CompileError::TooManyConstants);
+        }
+
+        // TODO: once we have local variables we'll need to check this isn't a reserved local name
+        self.current_chunk.write_chunk(OpCode::OP_GET_GLOBAL as u8, 0);
         self.current_chunk.write_chunk(ci as u8, 0);
 
         Ok(())

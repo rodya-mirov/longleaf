@@ -18,6 +18,7 @@ pub enum Value {
 // Not clone; we specifically want to manage this memory very carefully
 #[derive(Debug)]
 pub enum Obj {
+    // TODO: string interning if we want to http://www.craftinginterpreters.com/hash-tables.html#string-interning
     ObjString(ObjString),
 }
 
@@ -40,7 +41,7 @@ impl Display for Value {
                         write!(f, "{}", s.val)
                     }
                 }
-            },
+            }
         }
     }
 }

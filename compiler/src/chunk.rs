@@ -16,6 +16,10 @@ impl Chunk {
         Default::default()
     }
 
+    pub fn len(&self) -> usize {
+        self.code.len()
+    }
+
     pub fn write_chunk(&mut self, code: u8, line: usize) {
         self.code.push(code);
         self.lines.push(line);

@@ -1,40 +1,42 @@
-use std::{convert::TryFrom, io::Write};
+use std::{convert::TryFrom, io::Write, collections::HashMap};
 
-use compiler::{chunk::Chunk, ops::OpCode, Value, Obj, ObjString};
+use compiler::{chunk::Chunk, ops::OpCode, Obj, ObjString, Value};
 
 pub struct VM {
     chunk: Chunk,
     // pointer to an instruction in chunk.code
     ip: usize,
     stack: Stack,
-    objects: Objects,
+    // TODO http://www.craftinginterpreters.com/global-variables.html reuses string pointers
+    // I'm not sure if it's possible, given rust's move semantics, to avoid this clone
+    // I'm also not sure I care; the number of globals should be smallish
+    globals: HashMap<String, Value>,
+    objects: Heap,
 }
 
-mod objects {
+mod heap {
     use compiler::Obj;
 
-    pub struct Objects {
+    pub struct Heap {
         owned: Vec<*mut Obj>,
     }
 
-    impl Objects {
+    impl Heap {
         pub fn new() -> Self {
             Self { owned: Vec::new() }
         }
 
-        // This is probably ... not what we want? idk translating this C code into rust
-        // is rough on my tiny brain and I'm kind of just making it up.
-        // original: http://www.craftinginterpreters.com/strings.html#strings
         pub fn track(&mut self, obj: *mut Obj) {
             self.owned.push(obj);
         }
     }
 
-    impl Drop for Objects {
+    impl Drop for Heap {
         fn drop(&mut self) {
             while let Some(obj) = self.owned.pop() {
                 unsafe {
-                    #[cfg(any(test, feature="verbose"))] {
+                    #[cfg(any(test, feature = "verbose"))]
+                    {
                         let o = obj.as_ref().unwrap();
                         match o {
                             Obj::ObjString(s) => println!("Dropping string '{}'", s.val),
@@ -47,7 +49,7 @@ mod objects {
     }
 }
 
-use objects::Objects;
+use heap::Heap;
 
 mod stack {
     use super::{CompilerErrorKind, InterpretError, InterpretResult, RuntimeErrorKind};
@@ -95,7 +97,7 @@ mod stack {
 
         #[inline(always)]
         pub fn peek(&self, dist: usize) -> InterpretResult<Value> {
-            if self.stack_p == 0 ||  dist > self.stack_p - 1 {
+            if self.stack_p == 0 || dist > self.stack_p - 1 {
                 Err(InterpretError::CompileError(
                     CompilerErrorKind::StackUnderflow,
                 ))
@@ -157,6 +159,7 @@ pub enum CompilerErrorKind {
 #[derive(Debug)]
 pub enum RuntimeErrorKind {
     StackOverflow,
+    UndefinedGlobal,
     // TODO: probably more debug output would be helpful, this happens a lot
     WrongType,
     ArithmeticException(ArithmeticException),
@@ -196,17 +199,33 @@ pub type InterpretResult<T = ()> = Result<T, InterpretError>;
 
 impl VM {
     pub fn interpret<W: Write>(chunk: Chunk, w: &mut W) -> InterpretResult {
-        let mut vm = VM {
-            chunk,
-            ip: 0,
-            stack: Stack::new(),
-            objects: Objects::new(),
-        };
-        vm.run(w)
+        VM::new_with(chunk).run(w)
     }
 
-    fn run<W: Write>(&mut self, w: &mut W) -> InterpretResult {
+    pub fn new_with(chunk: Chunk) -> Self {
+        VM {
+            chunk,
+            ip: 0,
+            globals: HashMap::new(),
+            stack: Stack::new(),
+            objects: Heap::new(),
+        }
+    }
+
+    pub fn new() -> Self {
+        Self::new_with(Chunk::default())
+    }
+
+    pub fn chunk_mut(&mut self) -> &mut Chunk {
+        &mut self.chunk
+    }
+
+    pub fn run<W: Write>(&mut self, w: &mut W) -> InterpretResult {
         loop {
+            if self.ip >= self.chunk.len() {
+                break Ok(());
+            }
+
             let instr: u8 = self.chunk.read_byte(self.ip);
 
             #[cfg(any(test, feature = "verbose"))]
@@ -241,6 +260,20 @@ impl VM {
                 OpCode::OP_CONSTANT => {
                     let val = self.read_constant()?;
                     self.stack.push(val)?;
+                }
+                OpCode::OP_DEFINE_GLOBAL => {
+                    let val = self.read_constant()?;
+                    let name: &ObjString = as_string(val)?;
+                    self.globals.insert(name.val.clone(), self.stack.peek(0)?);
+                    self.stack.pop()?;
+                }
+                OpCode::OP_GET_GLOBAL => {
+                    let val = self.read_constant()?;
+                    let name: &ObjString = as_string(val)?;
+                    match self.globals.get(&name.val) {
+                        Some(val) => self.stack.push(*val)?,
+                        None => return Err(InterpretError::RuntimeError(RuntimeErrorKind::UndefinedGlobal)),
+                    }
                 }
                 OpCode::OP_NIL => {
                     self.stack.push(())?;
@@ -375,20 +408,24 @@ fn check_eq(a: Value, b: Value) -> InterpretResult<bool> {
         Value::Object(a) => {
             match b {
                 Value::Object(b) => {
+                    // Quick optimization; in the (common?) case of two references pointing
+                    // to exactly the same object, we don't need to deref or anything
+                    if std::ptr::eq(a, b) {
+                        return Ok(true);
+                    }
+
                     match unsafe { a.as_ref().unwrap() } {
-                        Obj::ObjString(a) => {
-                            match unsafe { b.as_ref().unwrap() } {
-                                Obj::ObjString(b) => {
-                                    println!("{} and {}", a.val, b.val);
-                                    Ok(&a.val == &b.val)
-                                }
+                        Obj::ObjString(a) => match unsafe { b.as_ref().unwrap() } {
+                            Obj::ObjString(b) => {
+                                println!("{} and {}", a.val, b.val);
+                                Ok(&a.val == &b.val)
                             }
-                        }
+                        },
                     }
                 }
                 _ => Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType)),
             }
-        },
+        }
     }
 }
 
@@ -413,11 +450,9 @@ fn check_neq(a: Value, b: Value) -> InterpretResult<bool> {
 #[inline(always)]
 fn is_string(v: Value) -> bool {
     match v {
-        Value::Object(o) => {
-            match unsafe { o.as_ref().expect("GC Pointer should be valid") } {
-                Obj::ObjString(_) => true,
-            }
-        }
+        Value::Object(o) => match unsafe { o.as_ref().expect("GC Pointer should be valid") } {
+            Obj::ObjString(_) => true,
+        },
         _ => false,
     }
 }
@@ -431,14 +466,13 @@ fn is_number(v: Value) -> bool {
 }
 
 // TODO: probably refactor this to take a closure
+#[inline(always)]
 fn as_string<'a>(v: Value) -> InterpretResult<&'a ObjString> {
     match v {
-        Value::Object(o) => {
-            match unsafe { o.as_ref().expect("GC Pointer should be valid") } {
-                Obj::ObjString(s) => Ok(s),
-            }
-        }
-        _ => Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType))
+        Value::Object(o) => match unsafe { o.as_ref().expect("GC Pointer should be valid") } {
+            Obj::ObjString(s) => Ok(s),
+        },
+        _ => Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType)),
     }
 }
 
