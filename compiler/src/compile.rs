@@ -142,6 +142,7 @@ impl CompileContext {
         Ok(())
     }
 
+    /// Emit a "jump instruction" with two placeholder (zero) byte arguments.
     #[inline]
     fn emit_placeholder_jump(&mut self, jump_instr: OpCode) -> CompileResult {
         self.current_chunk.write_chunk(jump_instr as u8, 0);
@@ -150,7 +151,7 @@ impl CompileContext {
         Ok(())
     }
 
-    /// We emit jumps (OP_JUMP, OP_JUMP_IF_FALSE) with a 2-byte argument placeholder.
+    /// We emit forward jumps (OP_JUMP, OP_JUMP_IF_FALSE) with a 2-byte argument placeholder.
     /// This should be called immediately after the "jump over" has been compiled,
     /// and with the argument start_pos to be the index of the jump to be replaced.
     ///
@@ -332,6 +333,7 @@ impl CompileContext {
             ast::BinaryOp::Or => {
                 self.compile_expr(left)?;
 
+                // TODO perf: this is dumb, make a JUMP_IF_TRUE instruction
                 let if_false_start = self.current_chunk.code.len();
                 self.emit_placeholder_jump(OpCode::OP_JUMP_IF_FALSE)?;
 
