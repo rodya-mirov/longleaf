@@ -51,6 +51,8 @@ pub fn disassemble_instr<W: Write>(chunk: &Chunk, offset: usize, w: &mut W) -> I
         Ok(OpCode::OP_SET_LOCAL) => byte_instruction(chunk, "OP_SET_LOCAL", offset, w),
         Ok(OpCode::OP_GET_LOCAL) => byte_instruction(chunk, "OP_GET_LOCAL", offset, w),
         Ok(OpCode::OP_POP_SWAP) => simple_instruction("OP_POP_SWAP", offset, w),
+        Ok(OpCode::OP_JUMP_IF_FALSE) => two_byte_instruction(chunk, "OP_JUMP_IF_FALSE", offset, w),
+        Ok(OpCode::OP_JUMP) => two_byte_instruction(chunk, "OP_JUMP_IF_FALSE", offset, w),
         Err(unknown_code) => {
             write!(w, "Unknown opcode {}\n", unknown_code)?;
             Ok(offset + 1)
@@ -85,6 +87,18 @@ fn byte_instruction<W: Write>(
     let byte: u8 = chunk.code[offset + 1];
     write!(w, "{} {:04}\n", name, byte)?;
     Ok(offset + 2)
+}
+
+fn two_byte_instruction<W: Write>(
+    chunk: &Chunk,
+    name: &str,
+    offset: usize,
+    w: &mut W,
+) -> IoResult<usize> {
+    let byte: u8 = chunk.code[offset + 1];
+    let val: u16 = (byte as u16) << 8 + chunk.code[offset + 2];
+    write!(w, "{} {:04}\n", name, val)?;
+    Ok(offset + 3)
 }
 
 fn print_value<W: Write>(w: &mut W, val: Value) -> IoResult {

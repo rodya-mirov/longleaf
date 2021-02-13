@@ -2,6 +2,16 @@ use std::{collections::HashMap, convert::TryFrom, io::Write};
 
 use compiler::{chunk::Chunk, ops::OpCode, Obj, ObjString, Value};
 
+pub trait VMIO {
+    type PrintWriter: Write;
+    type ErrWriter: Write;
+    type DebugWriter: Write;
+
+    fn print_writer(&mut self) -> &mut Self::PrintWriter;
+    fn err_writer(&mut self) -> &mut Self::ErrWriter;
+    fn debug_writer(&mut self) -> &mut Self::DebugWriter;
+}
+
 pub struct VM {
     chunk: Chunk,
     // pointer to an instruction in chunk.code
@@ -220,7 +230,7 @@ impl From<CompilerErrorKind> for InterpretError {
 pub type InterpretResult<T = ()> = Result<T, InterpretError>;
 
 impl VM {
-    pub fn interpret<W: Write>(chunk: Chunk, w: &mut W) -> InterpretResult {
+    pub fn interpret<W: VMIO>(chunk: Chunk, w: &mut W) -> InterpretResult {
         VM::new_with(chunk).run(w)
     }
 
@@ -242,7 +252,7 @@ impl VM {
         &mut self.chunk
     }
 
-    pub fn run<W: Write>(&mut self, w: &mut W) -> InterpretResult {
+    pub fn run<W: VMIO>(&mut self, w: &mut W) -> InterpretResult {
         loop {
             if self.ip >= self.chunk.len() {
                 break Ok(());
@@ -253,14 +263,14 @@ impl VM {
             #[cfg(any(test, feature = "verbose"))]
             {
                 // Dump the stack ...
-                write!(w, "    [STACK STATE]: ")?;
+                write!(w.debug_writer(), "    [STACK STATE]: ")?;
                 for val in &self.stack {
-                    write!(w, "[ {:.03} ]", val)?;
+                    write!(w.debug_writer(), "[ {:.03} ]", val)?;
                 }
-                write!(w, "\n")?;
+                write!(w.debug_writer(), "\n")?;
                 // ... then disassemble the current instruction
-                write!(w, "Current instruction:\n  ")?;
-                compiler::debug::disassemble_instr(&self.chunk, self.ip, w)?;
+                write!(w.debug_writer(), "Current instruction:\n  ")?;
+                compiler::debug::disassemble_instr(&self.chunk, self.ip, w.debug_writer())?;
             }
 
             self.ip += 1;
@@ -274,7 +284,7 @@ impl VM {
                 }
                 OpCode::OP_PRINT => {
                     let val = self.stack.pop()?;
-                    write!(w, "{:.03}\n", val)?;
+                    write!(w.print_writer(), "{:.03}\n", val)?;
                 }
                 OpCode::OP_POP => {
                     self.stack.pop()?;
@@ -291,7 +301,8 @@ impl VM {
                 OpCode::OP_SET_LOCAL => {
                     // This is leftover; if we at some point allow mutable locals, which we will,
                     // then this should allow them to work correctly
-                    #[allow(unreachable_code)] {
+                    #[allow(unreachable_code)]
+                    {
                         unimplemented!("Local mutation is not correctly supported");
                         let stack_idx = self.chunk.read_byte(self.ip);
                         self.ip += 1;
@@ -322,6 +333,22 @@ impl VM {
                             ))
                         }
                     }
+                }
+                OpCode::OP_JUMP_IF_FALSE => {
+                    let peeked = self.stack.peek(0)?;
+                    if is_bool(peeked) {
+                        let offset: u16 = self.read_u16()?;
+                        if !as_bool(peeked)? {
+                            self.ip += offset as usize;
+                        }
+                    } else {
+                        write!(w.err_writer(), "Cannot jump on a non-bool\n")?;
+                        return Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType));
+                    }
+                }
+                OpCode::OP_JUMP => {
+                    let offset: u16 = self.read_u16()?;
+                    self.ip += offset as usize;
                 }
                 OpCode::OP_NIL => {
                     self.stack.push(())?;
@@ -363,7 +390,7 @@ impl VM {
                         let val = as_number(a)? + as_number(b)?;
                         self.stack.push(val)?;
                     } else {
-                        write!(w, "Cannot add values {:?} and {:?}", a, b)?;
+                        write!(w.err_writer(), "Cannot add values {:?} and {:?}", a, b)?;
                         return Err(InterpretError::RuntimeError(RuntimeErrorKind::WrongType));
                     }
                 }
@@ -436,6 +463,14 @@ impl VM {
         // TODO: if this is out of range, throw a CompileError? idk if I want safety checks
         let val: Value = self.chunk.get_constant(ind as usize);
         Ok(val)
+    }
+
+    #[inline(always)]
+    fn read_u16(&mut self) -> InterpretResult<u16> {
+        let offset: u16 = ((self.chunk.read_byte(self.ip) as u16) << 8)
+            + self.chunk.read_byte(self.ip + 1) as u16;
+        self.ip += 2;
+        Ok(offset)
     }
 }
 
@@ -529,6 +564,14 @@ fn is_string(v: Value) -> bool {
 fn is_number(v: Value) -> bool {
     match v {
         Value::Number(_) => true,
+        _ => false,
+    }
+}
+
+#[inline(always)]
+fn is_bool(v: Value) -> bool {
+    match v {
+        Value::Bool(_) => true,
         _ => false,
     }
 }

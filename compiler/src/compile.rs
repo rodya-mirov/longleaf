@@ -40,6 +40,7 @@ pub type CompileResult<T = ()> = Result<T, CompileError>;
 pub enum CompileError {
     TooManyConstants,
     TooManyLocals,
+    JumpTooFar,
 }
 
 // TODO: line numbers throughout
@@ -115,6 +116,59 @@ impl CompileContext {
         Ok(())
     }
 
+    fn compile_if_expr(&mut self, node: ast::IfExprNode) -> CompileResult {
+        self.compile_expr(*node.cond)?;
+
+        let start_pos = self.current_chunk.code.len();
+        self.emit_placeholder_jump(OpCode::OP_JUMP_IF_FALSE)?;
+
+        // if true, pop the condition value ...
+        self.current_chunk.write_chunk(OpCode::OP_POP as u8, 0);
+
+        self.compile_expr(*node.on_true)?;
+
+        // the "if-false" is now complete; jump to the end (we'll rewrite the jump in a moment)
+        let else_start_pos = self.current_chunk.code.len();
+        self.emit_placeholder_jump(OpCode::OP_JUMP)?;
+
+        // otherwise if the original position was false, we've now jumped to here
+        self.back_patch_jump(start_pos)?;
+
+        // and now we can do the if-false
+        self.compile_expr(*node.on_false)?;
+
+        self.back_patch_jump(else_start_pos)?;
+
+        Ok(())
+    }
+
+    #[inline]
+    fn emit_placeholder_jump(&mut self, jump_instr: OpCode) -> CompileResult {
+        self.current_chunk.write_chunk(jump_instr as u8, 0);
+        self.current_chunk.write_chunk(0, 0);
+        self.current_chunk.write_chunk(0, 0);
+        Ok(())
+    }
+
+    /// We emit jumps (OP_JUMP, OP_JUMP_IF_FALSE) with a 2-byte argument placeholder.
+    /// This should be called immediately after the "jump over" has been compiled,
+    /// and with the argument start_pos to be the index of the jump to be replaced.
+    ///
+    /// Returns error if it was more than u16::MAX ops to skip.
+    #[inline]
+    fn back_patch_jump(&mut self, start_pos: usize) -> CompileResult {
+
+        let covered_distance = self.current_chunk.code.len() - start_pos - 3;
+        if covered_distance > (u16::MAX as usize) {
+            return Err(CompileError::JumpTooFar);
+        }
+        let covered_distance = covered_distance as u16;
+        self.current_chunk.code[start_pos + 1] = (covered_distance >> 8) as u8;
+        self.current_chunk.code[start_pos + 2] = (covered_distance & (u8::MAX as u16)) as u8;
+
+        Ok(())
+    }
+
     fn compile_block_expr(&mut self, block: ast::BlockExprNode) -> CompileResult {
         self.scope_depth += 1;
 
@@ -123,10 +177,6 @@ impl CompileContext {
         }
 
         self.compile_expr(*block.ret)?;
-
-        #[cfg(feature = "verbose")] {
-            println!("Finished compiling block; current scope depth is {}; local situation is {:?}", self.scope_depth, &self.locals);
-        }
 
         while let Some(next) = self.locals.peek() {
             if next.scope_depth == self.scope_depth {
@@ -153,9 +203,13 @@ impl CompileContext {
             ast::ExprNode::Unary(u) => self.compile_unary(u),
             ast::ExprNode::Binary(b) => self.compile_binary(b),
             ast::ExprNode::Block(b) => self.compile_block_expr(b),
-            ast::ExprNode::If(_) => unimplemented!("Compiling if-expressions is not yet supported"),
-            ast::ExprNode::FnCall(_) => unimplemented!("Compiling function calls is not yet supported"),
-            ast::ExprNode::FnDef(_) => unimplemented!("Compiling function definitions is not yet supported"),
+            ast::ExprNode::If(i) => self.compile_if_expr(i),
+            ast::ExprNode::FnCall(_) => {
+                unimplemented!("Compiling function calls is not yet supported")
+            }
+            ast::ExprNode::FnDef(_) => {
+                unimplemented!("Compiling function definitions is not yet supported")
+            }
             ast::ExprNode::Nil(_) => self.compile_nil(),
             ast::ExprNode::BoolConst(b) => self.compile_bool_const(b),
             ast::ExprNode::Number(n) => self.compile_number(n),
@@ -249,24 +303,58 @@ impl CompileContext {
     }
 
     fn compile_binary(&mut self, b: ast::BinaryExprNode) -> CompileResult {
-        self.compile_expr(*b.left)?;
-        self.compile_expr(*b.right)?;
+        let left = *b.left;
+        let right = *b.right;
 
         match b.op {
-            ast::BinaryOp::Plus => self.current_chunk.write_chunk(OpCode::OP_ADD as u8, 0),
-            ast::BinaryOp::Minus => self.current_chunk.write_chunk(OpCode::OP_SUBTRACT as u8, 0),
-            ast::BinaryOp::Times => self.current_chunk.write_chunk(OpCode::OP_MULTIPLY as u8, 0),
-            ast::BinaryOp::Divide => self.current_chunk.write_chunk(OpCode::OP_DIVIDE as u8, 0),
-            ast::BinaryOp::Geq => self.current_chunk.write_chunk(OpCode::OP_GEQ as u8, 0),
-            ast::BinaryOp::Gt => self.current_chunk.write_chunk(OpCode::OP_GT as u8, 0),
-            ast::BinaryOp::Eq => self.current_chunk.write_chunk(OpCode::OP_EQ as u8, 0),
-            ast::BinaryOp::Neq => self.current_chunk.write_chunk(OpCode::OP_NEQ as u8, 0),
-            ast::BinaryOp::Leq => self.current_chunk.write_chunk(OpCode::OP_LEQ as u8, 0),
-            ast::BinaryOp::Lt => self.current_chunk.write_chunk(OpCode::OP_LT as u8, 0),
-            ast::BinaryOp::And => unimplemented!("Compiling 'and' is not supported until we get flow control"),
-            ast::BinaryOp::Or => unimplemented!("Compiling 'or' is not supported until we get flow control"),
-        }
+            ast::BinaryOp::Plus => self.normal_binary_op(left, right, OpCode::OP_ADD),
+            ast::BinaryOp::Minus => self.normal_binary_op(left, right, OpCode::OP_SUBTRACT),
+            ast::BinaryOp::Times => self.normal_binary_op(left, right, OpCode::OP_MULTIPLY),
+            ast::BinaryOp::Divide => self.normal_binary_op(left, right, OpCode::OP_DIVIDE),
+            ast::BinaryOp::Geq => self.normal_binary_op(left, right, OpCode::OP_GEQ),
+            ast::BinaryOp::Gt => self.normal_binary_op(left, right, OpCode::OP_GT),
+            ast::BinaryOp::Eq => self.normal_binary_op(left, right, OpCode::OP_EQ),
+            ast::BinaryOp::Neq => self.normal_binary_op(left, right, OpCode::OP_NEQ),
+            ast::BinaryOp::Leq => self.normal_binary_op(left, right, OpCode::OP_LEQ),
+            ast::BinaryOp::Lt => self.normal_binary_op(left, right, OpCode::OP_LT),
+            ast::BinaryOp::And => {
+                self.compile_expr(left)?;
 
+                let jump_start = self.current_chunk.code.len();
+                self.emit_placeholder_jump(OpCode::OP_JUMP_IF_FALSE)?;
+
+                self.current_chunk.write_chunk(OpCode::OP_POP as u8, 0);
+                self.compile_expr(right)?;
+                self.back_patch_jump(jump_start)?;
+
+                Ok(())
+            }
+            ast::BinaryOp::Or => {
+                self.compile_expr(left)?;
+
+                let if_false_start = self.current_chunk.code.len();
+                self.emit_placeholder_jump(OpCode::OP_JUMP_IF_FALSE)?;
+
+                let if_true_start = self.current_chunk.code.len();
+                self.emit_placeholder_jump(OpCode::OP_JUMP)?;
+
+                self.back_patch_jump(if_false_start)?;
+
+                self.current_chunk.write_chunk(OpCode::OP_POP as u8, 0);
+
+                self.compile_expr(right)?;
+
+                self.back_patch_jump(if_true_start)?;
+
+                Ok(())
+            }
+        }
+    }
+
+    fn normal_binary_op(&mut self, left: ast::ExprNode, right: ast::ExprNode, op: OpCode) -> CompileResult {
+        self.compile_expr(left)?;
+        self.compile_expr(right)?;
+        self.current_chunk.write_chunk(op as u8, 0);
         Ok(())
     }
 }

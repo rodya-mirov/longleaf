@@ -5,6 +5,7 @@ authors = ["Richard Rast <richard.rast@gmail.com>"]
 edition = "2018"
 
 [features]
+# TODO delete this feature, rely on the trait
 # If enabled, makes a truly alarming amount of debug output while the VM is running
 verbose = []
 

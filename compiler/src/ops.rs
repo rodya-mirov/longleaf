@@ -33,6 +33,9 @@ pub enum OpCode {
     OP_GET_LOCAL = 22,
     // basically pop at offset - 1; equivalently { let a = pop()?; pop()?; push(a); }
     OP_POP_SWAP = 23,
+    // pop stack; if false, jump arg value; arg is a 2-byte signed integer
+    OP_JUMP_IF_FALSE = 24,
+    OP_JUMP = 25,
 }
 
 impl TryFrom<u8> for OpCode {
@@ -65,6 +68,8 @@ impl TryFrom<u8> for OpCode {
             21 => Ok(OpCode::OP_SET_LOCAL),
             22 => Ok(OpCode::OP_GET_LOCAL),
             23 => Ok(OpCode::OP_POP_SWAP),
+            24 => Ok(OpCode::OP_JUMP_IF_FALSE),
+            25 => Ok(OpCode::OP_JUMP),
             _ => Err(value),
         }
     }

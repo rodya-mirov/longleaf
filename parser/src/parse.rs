@@ -85,7 +85,6 @@ fn parse_assign_stmt(s: Span) -> IResult<Span, cst::AssignStmt> {
     let (s, id) = parse_id(s)?;
     let (s, _) = multispace0(s)?;
     let (s, _) = parse_assign(s)?;
-    let (s, _) = multispace0(s)?;
     let (s, expr) = parse_expr(s)?;
     let (s, _) = multispace0(s)?;
     let (s, _) = parse_semi(s)?;
@@ -218,15 +217,13 @@ fn parse_comp_expr(s: Span) -> IResult<Span, cst::ExprNode> {
 
     let (s, left) = parse_add_expr(s)?;
 
-    let (s, _) = multispace0(s)?;
-
     let (s, op_pos) = position(s)?;
 
     for (op_tag, op) in [
-        (">", BinaryOp::Gt),
         (">=", BinaryOp::Geq),
-        ("<", BinaryOp::Lt),
+        (">", BinaryOp::Gt),
         ("<=", BinaryOp::Leq),
+        ("<", BinaryOp::Lt),
         ("==", BinaryOp::Eq),
         ("!=", BinaryOp::Neq),
     ]
@@ -234,7 +231,7 @@ fn parse_comp_expr(s: Span) -> IResult<Span, cst::ExprNode> {
     .copied()
     {
         // If we match an op, expect an expression immediately
-        if let Ok((inner_s, _)) = tag::<_, _, ParseError>(op_tag)(s) {
+        if let Ok((inner_s, _)) = pair(multispace0, tag::<_, _, ParseError>(op_tag))(s) {
             let (inner_s, _) = multispace0(inner_s)?;
             let (inner_s, right) = parse_add_expr(inner_s)?;
             let out = cst::ExprNode::Binary(cst::BinaryExprNode {
