@@ -63,4 +63,4 @@ jobs:
           toolchain: stable
           override: true
       - run: rustup component add clippy
-      - run: cargo clippy --features=${{matrix.feature-set}} -- -D warnings
+      - run: cargo clippy --features=${{matrix.feature-set}}
